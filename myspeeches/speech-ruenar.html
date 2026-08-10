@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0a2b26">
+<title>ЭФИР — голос в текст</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;800&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,500;1,7..72,400&family=Noto+Naskh+Arabic:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#f3eee2; --muted:#8fb0a5; --line:rgba(111,227,201,.16);
+    --amber:#ffb057; --amber2:#ff8a3d; --coral:#ff5d5d; --aqua:#6fe3c9;
+    --panel:rgba(255,255,255,.035);
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    min-height:100dvh; color:var(--ink);
+    font-family:'Unbounded','Noto Naskh Arabic',sans-serif;
+    background:
+      radial-gradient(1100px 750px at 85% -10%, rgba(111,227,201,.11), transparent 60%),
+      radial-gradient(950px 700px at 50% 115%, rgba(255,138,61,.16), transparent 62%),
+      radial-gradient(700px 520px at 8% 45%, rgba(111,227,201,.06), transparent 60%),
+      linear-gradient(180deg,#0a2b26,#062019 55%,#08261f);
+    overflow-x:hidden;
+  }
+  ::selection{background:rgba(255,176,87,.35)}
+  button{font-family:inherit;cursor:pointer;background:none;border:none;color:inherit}
+  button:focus-visible, .output:focus-visible{outline:2px solid var(--aqua);outline-offset:3px;border-radius:8px}
+
+  /* ---------- фон: шум и частицы ---------- */
+  .noise{position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.05;
+    background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+  #particles{position:fixed;inset:0;overflow:hidden;z-index:0;pointer-events:none}
+  .p{position:absolute;bottom:-14px;border-radius:50%;animation:rise linear infinite}
+  @keyframes rise{
+    0%{transform:translate(0,0);opacity:0}
+    8%{opacity:.8} 88%{opacity:.3}
+    100%{transform:translate(var(--dx),-108vh);opacity:0}
+  }
+
+  /* ---------- шапка ---------- */
+  header{position:relative;z-index:2;display:flex;justify-content:space-between;align-items:center;
+    gap:16px;flex-wrap:wrap;padding:22px clamp(16px,4vw,44px)}
+  .brand{display:flex;align-items:center;gap:14px}
+  .logo{width:44px;height:44px;border-radius:13px;display:grid;place-items:center;flex:none;
+    background:linear-gradient(145deg,rgba(111,227,201,.22),rgba(111,227,201,.05));
+    border:1px solid var(--line);box-shadow:0 6px 20px rgba(0,0,0,.25)}
+  .logo svg{width:22px;height:22px;stroke:var(--aqua)}
+  .brand h1{font-size:19px;font-weight:800;letter-spacing:.24em}
+  .brand p{font-size:9px;letter-spacing:.34em;text-transform:uppercase;color:var(--muted);margin-top:4px}
+  .langs{display:flex;gap:5px;padding:5px;border-radius:999px;background:rgba(255,255,255,.045);border:1px solid var(--line)}
+  .chip{padding:9px 16px;border-radius:999px;font-size:11px;letter-spacing:.08em;color:var(--muted);
+    transition:color .25s,background .25s,box-shadow .25s,transform .15s}
+  .chip:hover{color:var(--ink)}
+  .chip:active{transform:scale(.95)}
+  .chip.ar-chip{font-family:'Noto Naskh Arabic',serif;font-size:15px;letter-spacing:0;padding:6px 16px}
+  .chip.active{color:#eafff8;background:linear-gradient(180deg,rgba(111,227,201,.28),rgba(111,227,201,.10));
+    box-shadow:inset 0 0 0 1px rgba(111,227,201,.45),0 4px 16px rgba(111,227,201,.12)}
+
+  .warn{position:relative;z-index:2;margin:0 auto;max-width:780px;padding:12px 20px;border-radius:14px;
+    border:1px solid rgba(255,176,87,.4);background:rgba(255,176,87,.08);color:#ffd9a8;
+    font-size:12px;letter-spacing:.03em;line-height:1.6}
+
+  /* ---------- лист с текстом ---------- */
+  main{position:relative;z-index:1;padding:10px clamp(16px,4vw,44px) 235px}
+  .sheet{position:relative;max-width:800px;margin:22px auto 0;border-radius:22px;
+    background:var(--panel);border:1px solid var(--line);
+    box-shadow:0 30px 80px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.06);
+    overflow:hidden}
+  .sheet::before{content:"";position:absolute;top:0;left:8%;right:8%;height:1px;
+    background:linear-gradient(90deg,transparent,rgba(111,227,201,.5),transparent)}
+  .sheet-wave{position:absolute;left:0;right:0;bottom:-6px;width:100%;height:90px;opacity:.08;pointer-events:none}
+  .sheet-wave path{stroke:var(--aqua);stroke-width:2;fill:none;stroke-dasharray:500;animation:dash 9s linear infinite}
+  @keyframes dash{to{stroke-dashoffset:-1000}}
+
+  .sheet-head{display:flex;justify-content:space-between;align-items:center;
+    padding:14px 22px;border-bottom:1px dashed var(--line)}
+  .live-badge{visibility:hidden;display:inline-flex;align-items:center;gap:8px;
+    font-size:10px;font-weight:600;letter-spacing:.28em;color:#ffb3ad;text-transform:uppercase}
+  .live-badge i{width:8px;height:8px;border-radius:50%;background:var(--coral);animation:pulseDot 1.1s infinite}
+  body.recording .live-badge{visibility:visible}
+  @keyframes pulseDot{0%,100%{box-shadow:0 0 0 0 rgba(255,93,93,.6)}60%{box-shadow:0 0 0 7px rgba(255,93,93,0)}}
+  .head-right{display:flex;align-items:center;gap:14px}
+  .count{font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted)}
+  .mini{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;color:var(--muted);
+    border:1px solid transparent;transition:all .25s}
+  .mini svg{width:15px;height:15px}
+  .mini:hover{color:var(--ink);border-color:var(--line);transform:translateY(-1px)}
+  .mini:disabled{opacity:.3;pointer-events:none}
+
+  .output{position:relative;min-height:32vh;max-height:52vh;overflow-y:auto;
+    padding:30px clamp(20px,4vw,38px) 46px;
+    font-family:'Literata',Georgia,serif;font-size:clamp(20px,2.4vw,27px);line-height:1.75;
+    scrollbar-width:thin;scrollbar-color:rgba(111,227,201,.3) transparent}
+  .output::-webkit-scrollbar{width:6px}
+  .output::-webkit-scrollbar-thumb{background:rgba(111,227,201,.28);border-radius:3px}
+  .output.ar{font-family:'Noto Naskh Arabic',serif;font-size:clamp(24px,2.9vw,32px);line-height:2.05;text-align:right}
+  .output.pop{animation:pop .22s ease}
+  @keyframes pop{50%{transform:scale(.992)}}
+  .interim{color:#ffd0a0;opacity:.85;font-style:italic}
+  .output.ar .interim{font-style:normal}
+  .caret{display:none;width:2px;height:1.05em;background:var(--amber);margin:0 4px;
+    vertical-align:-.12em;animation:blink 1s steps(2) infinite}
+  body.recording .caret{display:inline-block}
+  @keyframes blink{50%{opacity:0}}
+
+  .placeholder{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;gap:14px;padding:30px;text-align:center}
+  .placeholder .txt{max-width:440px;font-style:italic;font-size:.72em;line-height:1.8;color:var(--muted)}
+  .ph-arrow{color:var(--aqua);animation:bounce 1.7s ease-in-out infinite}
+  .ph-arrow svg{width:26px;height:26px}
+  @keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(7px)}}
+  .ph-rec{display:none;align-items:center;gap:10px;color:#ffb3ad;font-size:.68em;letter-spacing:.06em}
+  .ph-rec i{width:9px;height:9px;border-radius:50%;background:var(--coral);animation:pulseDot 1.1s infinite}
+  body.recording .ph-idle{display:none}
+  body.recording .ph-rec{display:flex}
+
+  .hint{margin:20px auto 0;text-align:center;font-size:9px;letter-spacing:.3em;
+    text-transform:uppercase;color:rgba(143,176,165,.65)}
+  @media (pointer:coarse){.hint{display:none}}
+
+  /* ---------- нижняя панель ---------- */
+  .dock{position:fixed;left:0;right:0;bottom:0;z-index:5;display:flex;justify-content:center;
+    padding:26px 16px calc(20px + env(safe-area-inset-bottom));pointer-events:none;
+    background:linear-gradient(transparent,rgba(5,22,18,.55) 30%,rgba(5,22,18,.94) 78%)}
+  .dock-inner{pointer-events:auto;display:flex;align-items:center;gap:clamp(16px,4vw,28px)}
+  .tool{width:56px;height:56px;border-radius:50%;display:grid;place-items:center;color:var(--muted);
+    background:rgba(255,255,255,.05);border:1px solid var(--line);
+    transition:all .25s cubic-bezier(.34,1.3,.64,1)}
+  .tool svg{width:22px;height:22px}
+  .tool:hover{color:var(--ink);border-color:rgba(111,227,201,.5);transform:translateY(-3px);
+    box-shadow:0 10px 26px rgba(0,0,0,.35),0 0 0 4px rgba(111,227,201,.07)}
+  .tool:active{transform:scale(.9)}
+  .tool:disabled{opacity:.3;pointer-events:none}
+
+  .mic-cluster{display:flex;flex-direction:column;align-items:center;gap:13px}
+  .mic-wrap{position:relative;width:96px;height:96px}
+  .ring{position:absolute;inset:0;border-radius:50%;border:1.5px solid rgba(255,93,93,.55);opacity:0;pointer-events:none}
+  body.recording .ring{animation:ripple 2.2s cubic-bezier(.25,.6,.3,1) infinite}
+  body.recording .r2{animation-delay:.7s}
+  body.recording .r3{animation-delay:1.4s}
+  @keyframes ripple{0%{transform:scale(1);opacity:.6}100%{transform:scale(2.15);opacity:0}}
+
+  .mic{position:absolute;inset:0;border-radius:50%;display:grid;place-items:center;color:#2a1505;
+    background:radial-gradient(circle at 30% 25%,#ffc880,var(--amber2));
+    box-shadow:0 14px 40px rgba(255,138,61,.35), inset 0 1px 0 rgba(255,255,255,.45);
+    animation:breathe 3.6s ease-in-out infinite;
+    transition:transform .3s cubic-bezier(.34,1.56,.64,1),background .4s,box-shadow .4s}
+  @keyframes breathe{0%,100%{box-shadow:0 14px 34px rgba(255,138,61,.3),inset 0 1px 0 rgba(255,255,255,.45)}
+    50%{box-shadow:0 16px 48px rgba(255,138,61,.5),inset 0 1px 0 rgba(255,255,255,.45)}}
+  .mic:hover{transform:scale(1.06)}
+  .mic:active{transform:scale(.92)}
+  body.recording .mic{animation:none;color:#2b0705;
+    background:radial-gradient(circle at 30% 25%,#ff938b,var(--coral));
+    box-shadow:0 14px 48px rgba(255,93,93,.5), inset 0 1px 0 rgba(255,255,255,.4)}
+  .mic.dead{filter:grayscale(.7) brightness(.65);cursor:not-allowed;animation:none}
+  .mic svg{position:absolute;width:36px;height:36px;transition:opacity .3s,transform .35s cubic-bezier(.34,1.56,.64,1)}
+  .ic-stop{opacity:0;transform:scale(.4) rotate(-90deg)}
+  body.recording .ic-mic{opacity:0;transform:scale(.4) rotate(90deg)}
+  body.recording .ic-stop{opacity:1;transform:scale(1) rotate(0)}
+
+  .status{display:flex;align-items:center;justify-content:center;gap:10px;min-height:16px;
+    font-size:10px;font-weight:400;letter-spacing:.2em;text-transform:uppercase;color:var(--muted)}
+  .eq{display:none;height:14px;gap:3px;align-items:flex-end}
+  body.recording .eq{display:inline-flex}
+  .eq i{width:3px;border-radius:2px;background:var(--amber);transform-origin:bottom;animation:eq .7s ease-in-out infinite alternate}
+  .eq i:nth-child(1){height:6px}
+  .eq i:nth-child(2){height:12px;animation-delay:.15s}
+  .eq i:nth-child(3){height:14px;animation-delay:.3s}
+  .eq i:nth-child(4){height:8px;animation-delay:.45s}
+  @keyframes eq{from{transform:scaleY(.3)}to{transform:scaleY(1)}}
+
+  .toast{position:fixed;left:50%;bottom:205px;transform:translate(-50%,10px);z-index:9;
+    padding:11px 20px;border-radius:999px;background:#0f3d36;border:1px solid rgba(111,227,201,.35);
+    font-size:11px;letter-spacing:.1em;opacity:0;pointer-events:none;transition:all .35s}
+  .toast.show{opacity:1;transform:translate(-50%,0)}
+
+  @media (max-width:640px){
+    .brand p{display:none}
+    .chip{padding:8px 11px;font-size:10px}
+    .mic-wrap{width:86px;height:86px}
+    .tool{width:50px;height:50px}
+    .output{min-height:28vh}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation:none!important;transition:none!important}
+  }
+</style>
+</head>
+<body>
+
+<div class="noise"></div>
+<div id="particles"></div>
+
+<header>
+  <div class="brand">
+    <div class="logo">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round">
+        <path d="M4 10v4M8 7v10M12 4v16M16 7v10M20 10v4"/>
+      </svg>
+    </div>
+    <div>
+      <h1>ЭФИР</h1>
+      <p>голос → текст</p>
+    </div>
+  </div>
+
+  <nav class="langs" aria-label="Язык распознавания">
+    <button class="chip active" data-lang="ru">Русский</button>
+    <button class="chip" data-lang="en">English</button>
+    <button class="chip ar-chip" data-lang="ar">العربية</button>
+  </nav>
+</header>
+
+<div class="warn" id="warnBox" hidden>
+  ⚠ &nbsp;Ваш браузер не поддерживает распознавание речи. Откройте сайт в Chrome, Edge или Safari
+  (и убедитесь, что сайт открыт по https или localhost).
+</div>
+
+<main>
+  <section class="sheet">
+    <svg class="sheet-wave" viewBox="0 0 800 120" preserveAspectRatio="none">
+      <path d="M0 60 Q40 15 80 60 T160 60 T240 60 T320 60 T400 60 T480 60 T560 60 T640 60 T720 60 T800 60"/>
+    </svg>
+    <div class="sheet-head">
+      <span class="live-badge"><i></i>в эфире</span>
+      <div class="head-right">
+        <span class="count" id="countWord">0 слов</span>
+        <button class="mini" id="btnCopy" title="Скопировать текст" aria-label="Скопировать текст" disabled>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="output" id="output" lang="ru" dir="ltr" tabindex="0">
+      <span id="finalText"></span><span id="interim" class="interim"></span><span class="caret"></span>
+      <div class="placeholder" id="placeholder">
+        <span class="ph-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v14M6 12l6 6 6-6"/></svg></span>
+        <p class="txt ph-idle" id="phIdle">Нажмите на микрофон и говорите — ваша речь превратится в текст.</p>
+        <p class="ph-rec"><i></i><span id="phRec">Говорите — я слушаю…</span></p>
+      </div>
+    </div>
+  </section>
+
+  <p class="hint">Space — запись &nbsp;·&nbsp; Backspace — удалить слово</p>
+</main>
+
+<footer class="dock">
+  <div class="dock-inner">
+    <button class="tool" id="btnUndo" title="Удалить последнее слово (Backspace)" aria-label="Удалить последнее слово" disabled>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 5H9l-6 7 6 7h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1z"/><path d="M12 9l6 6M18 9l-6 6"/>
+      </svg>
+    </button>
+
+    <div class="mic-cluster">
+      <div class="mic-wrap">
+        <span class="ring r1"></span><span class="ring r2"></span><span class="ring r3"></span>
+        <button class="mic" id="btnMic" aria-label="Начать запись">
+          <svg class="ic-mic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/>
+            <path d="M19 11a7 7 0 0 1-14 0"/><path d="M12 18v4M8 22h8"/>
+          </svg>
+          <svg class="ic-stop" viewBox="0 0 24 24" fill="currentColor">
+            <rect x="6.5" y="6.5" width="11" height="11" rx="2.5"/>
+          </svg>
+        </button>
+      </div>
+      <div class="status">
+        <span class="eq"><i></i><i></i><i></i><i></i></span>
+        <span id="statusText">Нажмите и говорите</span>
+      </div>
+    </div>
+
+    <button class="tool" id="btnClear" title="Очистить весь текст" aria-label="Очистить весь текст" disabled>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 6h18"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+        <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M10 11v6M14 11v6"/>
+      </svg>
+    </button>
+  </div>
+</footer>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(() => {
+  const LANGS = {
+    ru: { code: 'ru-RU' },
+    en: { code: 'en-US' },
+    ar: { code: 'ar-SA' }
+  };
+  const T = {
+    idle:     { ru: 'Нажмите и говорите',  en: 'Press the mic & speak', ar: 'اضغط وتحدّث' },
+    rec:      { ru: 'Слушаю…',             en: 'Listening…',            ar: 'أستمع…' },
+    noSpeech: { ru: 'Не слышно речи',      en: 'No speech detected',    ar: 'لا أسمع صوتًا' },
+    phIdle:   { ru: 'Нажмите на микрофон и говорите — ваша речь превратится в текст.',
+                en: 'Tap the mic and speak — your words will appear here.',
+                ar: 'اضغط على الميكروفون وتحدّث — سيظهر كلامك هنا.' },
+    phRec:    { ru: 'Говорите — я слушаю…', en: "Go ahead, I'm listening…", ar: 'تفضّل، أنا أستمع…' },
+    cleared:  { ru: 'Текст очищен', en: 'Cleared',  ar: 'تم المسح' },
+    copied:   { ru: 'Скопировано',  en: 'Copied',   ar: 'تم النسخ' },
+    denied:   { ru: 'Доступ к микрофону запрещён. Разрешите его в настройках браузера.',
+                en: 'Microphone access denied.', ar: 'تم رفض الوصول إلى الميكروفون.' },
+    noSupport:{ ru: 'Браузер не поддерживает распознавание речи. Откройте в Chrome или Edge.',
+                en: 'Speech recognition is not supported in this browser.',
+                ar: 'المتصفح لا يدعم التعرف على الكلام.' }
+  };
+
+  const $ = id => document.getElementById(id);
+  const output = $('output'), elFinal = $('finalText'), elInterim = $('interim'),
+        placeholder = $('placeholder'), elPhIdle = $('phIdle'), elPhRec = $('phRec'),
+        countWord = $('countWord'), statusText = $('statusText'), toastEl = $('toast'),
+        btnMic = $('btnMic'), btnUndo = $('btnUndo'), btnClear = $('btnClear'), btnCopy = $('btnCopy');
+
+  let currentLang = 'ru', finalText = '', interimText = '', recording = false, wantRecording = false;
+
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  let rec = null;
+
+  /* ---------- фоновые частицы ---------- */
+  const pw = $('particles');
+  for (let i = 0; i < 26; i++) {
+    const s = document.createElement('span');
+    s.className = 'p';
+    const size = (2 + Math.random() * 3).toFixed(1);
+    const dur = 16 + Math.random() * 18;
+    s.style.cssText =
+      `left:${(Math.random()*100).toFixed(1)}%;width:${size}px;height:${size}px;` +
+      `animation-duration:${dur.toFixed(1)}s;animation-delay:-${(Math.random()*dur).toFixed(1)}s;` +
+      `--dx:${(Math.random()*140-70).toFixed(0)}px;` +
+      `background:${Math.random() > .6 ? 'rgba(255,176,87,.55)' : 'rgba(111,227,201,.45)'}`;
+    pw.appendChild(s);
+  }
+
+  /* ---------- вспомогательное ---------- */
+  let toastTimer;
+  function toast(msg) {
+    toastEl.textContent = msg;
+    toastEl.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toastEl.classList.remove('show'), 2400);
+  }
+  function plural(n, one, few, many) {
+    const m10 = n % 10, m100 = n % 100;
+    if (m10 === 1 && m100 !== 11) return one;
+    if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return few;
+    return many;
+  }
+  function wordsLabel() {
+    const n = (finalText.trim().match(/\S+/g) || []).length;
+    if (currentLang === 'ru') return `${n} ${plural(n, 'слово', 'слова', 'слов')}`;
+    if (currentLang === 'en') return `${n} ${n === 1 ? 'word' : 'words'}`;
+    return `${n} كلمة`;
+  }
+  function setStatus(t) { statusText.textContent = t; }
+
+  function render() {
+    elFinal.textContent = finalText;
+    elInterim.textContent = interimText
+      ? ((finalText && !/\s$/.test(finalText)) ? ' ' + interimText : interimText)
+      : '';
+    const has = !!(finalText.trim() || interimText.trim());
+    placeholder.style.display = has ? 'none' : 'flex';
+    countWord.textContent = wordsLabel();
+    btnUndo.disabled = !finalText.trim();
+    btnClear.disabled = !has;
+    btnCopy.disabled = !finalText.trim();
+    output.scrollTop = output.scrollHeight;
+  }
+
+  /* ---------- распознавание ---------- */
+  if (SR) {
+    rec = new SR();
+    rec.continuous = true;
+    rec.interimRes
