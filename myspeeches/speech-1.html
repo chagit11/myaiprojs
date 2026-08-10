@@ -1,1 +1,425 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Голос в Текст</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    color: #fff;
+    overflow: hidden;
+  }
+  .header {
+    padding: 20px;
+    text-align: center;
+    background: rgba(0,0,0,0.2);
+    backdrop-filter: blur(10px);
+  }
+  .header h1 {
+    font-size: 1.5rem;
+    font-weight: 300;
+    letter-spacing: 2px;
+    color: #e94560;
+  }
+  .lang-selector {
+    margin-top: 10px;
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .lang-btn {
+    padding: 6px 14px;
+    border: 1px solid rgba(233,69,96,0.4);
+    background: transparent;
+    color: #fff;
+    border-radius: 20px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: all 0.3s;
+  }
+  .lang-btn.active {
+    background: #e94560;
+    border-color: #e94560;
+    box-shadow: 0 0 15px rgba(233,69,96,0.4);
+  }
+  .lang-btn:hover:not(.active) {
+    background: rgba(233,69,96,0.1);
+  }
+  .main-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 20px;
+    overflow: hidden;
+  }
+  .text-display {
+    flex: 1;
+    background: rgba(255,255,255,0.05);
+    border-radius: 20px;
+    padding: 24px;
+    overflow-y: auto;
+    font-size: 1.4rem;
+    line-height: 1.6;
+    color: #eaeaea;
+    border: 1px solid rgba(255,255,255,0.1);
+    backdrop-filter: blur(5px);
+    min-height: 200px;
+    word-wrap: break-word;
+    direction: auto;
+  }
+  .text-display:empty::before {
+    content: 'Нажмите кнопку и начните говорить...';
+    color: rgba(255,255,255,0.3);
+    font-style: italic;
+  }
+  .text-display[dir="rtl"] {
+    text-align: right;
+  }
+  .controls {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    padding: 20px 0 30px;
+  }
+  .action-buttons {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 8px;
+  }
+  .action-btn {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.2s;
+    background: rgba(255,255,255,0.1);
+    color: #fff;
+    backdrop-filter: blur(5px);
+  }
+  .action-btn:hover {
+    background: rgba(255,255,255,0.2);
+    transform: translateY(-2px);
+  }
+  .action-btn.delete-word {
+    background: rgba(233,69,96,0.2);
+    color: #ff6b6b;
+  }
+  .action-btn.delete-word:hover {
+    background: rgba(233,69,96,0.4);
+  }
+  .action-btn.clear-all {
+    background: rgba(255,193,7,0.2);
+    color: #ffd54f;
+  }
+  .action-btn.clear-all:hover {
+    background: rgba(255,193,7,0.4);
+  }
+  .mic-container {
+    position: relative;
+  }
+  .mic-btn {
+    width: 90px;
+    height: 90px;
+    border-radius: 50%;
+    border: none;
+    background: linear-gradient(135deg, #e94560, #c23a51);
+    color: #fff;
+    font-size: 2rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 8px 32px rgba(233,69,96,0.4);
+    transition: all 0.3s;
+    position: relative;
+    z-index: 2;
+  }
+  .mic-btn:hover {
+    transform: scale(1.05);
+    box-shadow: 0 12px 40px rgba(233,69,96,0.5);
+  }
+  .mic-btn.recording {
+    background: linear-gradient(135deg, #ff4757, #e94560);
+    animation: pulse 1.5s infinite;
+  }
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(233,69,96,0.7); }
+    70% { box-shadow: 0 0 0 25px rgba(233,69,96,0); }
+    100% { box-shadow: 0 0 0 0 rgba(233,69,96,0); }
+  }
+  .mic-ring {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 110px;
+    height: 110px;
+    border-radius: 50%;
+    border: 2px solid rgba(233,69,96,0.3);
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  .mic-btn.recording ~ .mic-ring {
+    opacity: 1;
+    animation: ripple 2s infinite;
+  }
+  @keyframes ripple {
+    0% { transform: translate(-50%, -50%) scale(1); opacity: 0.5; }
+    100% { transform: translate(-50%, -50%) scale(1.5); opacity: 0; }
+  }
+  .status {
+    font-size: 0.85rem;
+    color: rgba(255,255,255,0.6);
+    margin-top: 4px;
+  }
+  .status.recording {
+    color: #e94560;
+    animation: blink 1s infinite;
+  }
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+  .interim {
+    color: rgba(255,255,255,0.5);
+    font-style: italic;
+  }
+  .copy-hint {
+    position: absolute;
+    top: 10px;
+    right: 15px;
+    font-size: 0.75rem;
+    color: rgba(255,255,255,0.3);
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  .text-display:hover .copy-hint {
+    opacity: 1;
+  }
+  .text-wrapper {
+    position: relative;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+</style>
+</head>
+<body>
+  <div class="header">
+    <h1>🎤 ГОЛОС В ТЕКСТ</h1>
+    <div class="lang-selector">
+      <button class="lang-btn active" data-lang="ru-RU">🇷🇺 Русский</button>
+      <button class="lang-btn" data-lang="en-US">🇬🇧 English</button>
+      <button class="lang-btn" data-lang="ar-SA">🇸🇦 العربية</button>
+    </div>
+  </div>
 
+  <div class="main-area">
+    <div class="text-wrapper">
+      <div class="copy-hint">💡 Кликните по тексту, чтобы скопировать</div>
+      <div class="text-display" id="textDisplay"></div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <div class="action-buttons">
+      <button class="action-btn delete-word" id="deleteWordBtn" title="Удалить последнее слово">
+        ⌫ Удалить слово
+      </button>
+      <button class="action-btn clear-all" id="clearAllBtn" title="Очистить всё">
+        ✕ Очистить всё
+      </button>
+    </div>
+    <div class="mic-container">
+      <button class="mic-btn" id="micBtn">🎙️</button>
+      <div class="mic-ring"></div>
+    </div>
+    <div class="status" id="status">Готов к записи</div>
+  </div>
+
+<script>
+  const micBtn = document.getElementById('micBtn');
+  const textDisplay = document.getElementById('textDisplay');
+  const status = document.getElementById('status');
+  const deleteWordBtn = document.getElementById('deleteWordBtn');
+  const clearAllBtn = document.getElementById('clearAllBtn');
+  const langBtns = document.querySelectorAll('.lang-btn');
+
+  let recognition = null;
+  let isRecording = false;
+  let finalTranscript = '';
+  let interimTranscript = '';
+  let currentLang = 'ru-RU';
+
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    textDisplay.innerHTML = '<span style="color:#ff6b6b">❌ Ваш браузер не поддерживает распознавание речи.<br>Попробуйте Chrome, Edge или Safari.</span>';
+    micBtn.disabled = true;
+    status.textContent = 'API недоступен';
+  }
+
+  function initRecognition() {
+    recognition = new SpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = currentLang;
+
+    recognition.onstart = () => {
+      isRecording = true;
+      micBtn.classList.add('recording');
+      micBtn.textContent = '⏹️';
+      status.textContent = '🔴 Запись... Говорите!';
+      status.classList.add('recording');
+    };
+
+    recognition.onresult = (event) => {
+      interimTranscript = '';
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const transcript = event.results[i][0].transcript;
+        if (event.results[i].isFinal) {
+          finalTranscript += transcript + ' ';
+        } else {
+          interimTranscript += transcript;
+        }
+      }
+      updateDisplay();
+    };
+
+    recognition.onerror = (event) => {
+      console.error('Speech recognition error', event.error);
+      if (event.error === 'not-allowed') {
+        status.textContent = '❌ Доступ к микрофону запрещён';
+      } else if (event.error === 'no-speech') {
+        status.textContent = 'Не слышу речь, попробуйте ещё раз';
+      } else {
+        status.textContent = 'Ошибка: ' + event.error;
+      }
+      stopRecording();
+    };
+
+    recognition.onend = () => {
+      if (isRecording) {
+        try { recognition.start(); } catch(e) {}
+      }
+    };
+  }
+
+  function updateDisplay() {
+    let html = finalTranscript;
+    if (interimTranscript) {
+      html += '<span class="interim">' + interimTranscript + '</span>';
+    }
+    textDisplay.innerHTML = html || '';
+    textDisplay.scrollTop = textDisplay.scrollHeight;
+    
+    if (currentLang === 'ar-SA') {
+      textDisplay.setAttribute('dir', 'rtl');
+    } else {
+      textDisplay.removeAttribute('dir');
+    }
+  }
+
+  function startRecording() {
+    if (!recognition || recognition.lang !== currentLang) {
+      initRecognition();
+    }
+    finalTranscript = textDisplay.innerText.trim();
+    if (finalTranscript) finalTranscript += ' ';
+    try {
+      recognition.start();
+    } catch(e) {
+      status.textContent = 'Ошибка запуска: ' + e.message;
+    }
+  }
+
+  function stopRecording() {
+    isRecording = false;
+    if (recognition) {
+      try { recognition.stop(); } catch(e) {}
+    }
+    micBtn.classList.remove('recording');
+    micBtn.textContent = '🎙️';
+    status.textContent = 'Готов к записи';
+    status.classList.remove('recording');
+    interimTranscript = '';
+    updateDisplay();
+  }
+
+  micBtn.addEventListener('click', () => {
+    if (isRecording) {
+      stopRecording();
+    } else {
+      startRecording();
+    }
+  });
+
+  langBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      langBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentLang = btn.dataset.lang;
+      if (isRecording) {
+        stopRecording();
+        setTimeout(startRecording, 300);
+      }
+      const langNames = { 'ru-RU': 'русский', 'en-US': 'English', 'ar-SA': 'العربية' };
+      status.textContent = 'Язык: ' + langNames[currentLang];
+    });
+  });
+
+  deleteWordBtn.addEventListener('click', () => {
+    let text = textDisplay.innerText.trim();
+    if (!text) return;
+    const words = text.split(/\s+/);
+    words.pop();
+    finalTranscript = words.length > 0 ? words.join(' ') + ' ' : '';
+    interimTranscript = '';
+    updateDisplay();
+    status.textContent = 'Последнее слово удалено';
+    setTimeout(() => {
+      if (!isRecording) status.textContent = 'Готов к записи';
+    }, 1500);
+  });
+
+  clearAllBtn.addEventListener('click', () => {
+    finalTranscript = '';
+    interimTranscript = '';
+    updateDisplay();
+    status.textContent = 'Текст очищен';
+    setTimeout(() => {
+      if (!isRecording) status.textContent = 'Готов к записи';
+    }, 1500);
+  });
+
+  textDisplay.addEventListener('click', () => {
+    const text = textDisplay.innerText.trim();
+    if (text) {
+      navigator.clipboard.writeText(text).then(() => {
+        const oldStatus = status.textContent;
+        status.textContent = '✅ Скопировано в буфер обмена!';
+        setTimeout(() => { status.textContent = oldStatus; }, 2000);
+      });
+    }
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.code === 'Space' && e.target === document.body) {
+      e.preventDefault();
+      micBtn.click();
+    }
+  });
+</script>
+</body>
+</html>
