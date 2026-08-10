@@ -183,6 +183,7 @@
     font-size: 0.85rem;
     color: rgba(255,255,255,0.6);
     margin-top: 4px;
+    min-height: 1.2em;
   }
   .status.recording {
     color: #e94560;
@@ -262,6 +263,7 @@
   let finalTranscript = '';
   let interimTranscript = '';
   let currentLang = 'ru-RU';
+  let lastFinalLength = 0; // Защита от дублей
 
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SpeechRecognition) {
@@ -271,9 +273,14 @@
   }
 
   function initRecognition() {
+    if (recognition) {
+      try { recognition.stop(); } catch(e) {}
+    }
+
     recognition = new SpeechRecognition();
     recognition.continuous = true;
     recognition.interimResults = true;
+    recognition.maxAlternatives = 1;
     recognition.lang = currentLang;
 
     recognition.onstart = () => {
@@ -282,6 +289,7 @@
       micBtn.textContent = '⏹️';
       status.textContent = '🔴 Запись... Говорите!';
       status.classList.add('recording');
+      lastFinalLength = finalTranscript.length;
     };
 
     recognition.onresult = (event) => {
@@ -289,7 +297,12 @@
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const transcript = event.results[i][0].transcript;
         if (event.results[i].isFinal) {
-          finalTranscript += transcript + ' ';
+          // Защита: если текст уже был добавлен, не дублируем
+          const existing = finalTranscript.trim();
+          const incoming = transcript.trim();
+          if (!existing.endsWith(incoming)) {
+            finalTranscript += transcript + ' ';
+          }
         } else {
           interimTranscript += transcript;
         }
@@ -298,20 +311,24 @@
     };
 
     recognition.onerror = (event) => {
-      console.error('Speech recognition error', event.error);
       if (event.error === 'not-allowed') {
         status.textContent = '❌ Доступ к микрофону запрещён';
       } else if (event.error === 'no-speech') {
-        status.textContent = 'Не слышу речь, попробуйте ещё раз';
+        status.textContent = 'Не слышу речь. Нажмите кнопку снова.';
+      } else if (event.error === 'aborted') {
+        // Нормально при ручной остановке
+        return;
       } else {
         status.textContent = 'Ошибка: ' + event.error;
       }
-      stopRecording();
+      stopRecordingUI();
     };
 
     recognition.onend = () => {
+      // Chrome сам останавливает запись после паузы — НЕ перезапускаем автоматически
       if (isRecording) {
-        try { recognition.start(); } catch(e) {}
+        stopRecordingUI();
+        status.textContent = '⏸️ Пауза. Нажмите кнопку, чтобы продолжить';
       }
     };
   }
@@ -332,11 +349,7 @@
   }
 
   function startRecording() {
-    if (!recognition || recognition.lang !== currentLang) {
-      initRecognition();
-    }
-    finalTranscript = textDisplay.innerText.trim();
-    if (finalTranscript) finalTranscript += ' ';
+    initRecognition();
     try {
       recognition.start();
     } catch(e) {
@@ -344,14 +357,13 @@
     }
   }
 
-  function stopRecording() {
+  function stopRecordingUI() {
     isRecording = false;
     if (recognition) {
       try { recognition.stop(); } catch(e) {}
     }
     micBtn.classList.remove('recording');
     micBtn.textContent = '🎙️';
-    status.textContent = 'Готов к записи';
     status.classList.remove('recording');
     interimTranscript = '';
     updateDisplay();
@@ -359,7 +371,8 @@
 
   micBtn.addEventListener('click', () => {
     if (isRecording) {
-      stopRecording();
+      stopRecordingUI();
+      status.textContent = 'Готов к записи';
     } else {
       startRecording();
     }
@@ -371,11 +384,16 @@
       btn.classList.add('active');
       currentLang = btn.dataset.lang;
       if (isRecording) {
-        stopRecording();
-        setTimeout(startRecording, 300);
+        stopRecordingUI();
+        setTimeout(() => {
+          startRecording();
+        }, 300);
       }
       const langNames = { 'ru-RU': 'русский', 'en-US': 'English', 'ar-SA': 'العربية' };
       status.textContent = 'Язык: ' + langNames[currentLang];
+      setTimeout(() => {
+        if (!isRecording) status.textContent = 'Готов к записи';
+      }, 1500);
     });
   });
 
