@@ -250,6 +250,7 @@
   .toast.show{transform:translate(-50%,0)}
 </style>
 </head>
+
 <body>
 
 <div id="errbox"></div>
@@ -358,4 +359,680 @@
       <span>Озвучивать слог при нажатии</span>
       <label class="sw"><input type="checkbox" id="voiceChk"><i class="track"></i><i class="knob"></i></label>
     </div>
-    <button class="btn-test" id="btnTestVoice" type="butto 
+    <button class="btn-test" id="btnTestVoice" type="button">🎤 Проверить озвучку</button>
+    <div class="sub-note">Если звука нет: Android — Настройки → Язык и ввод → Синтез речи (русский голос). iPhone — Настройки → Универсальный доступ → Устный контент → Голоса → Русский.</div>
+  </div>
+
+  <button class="done" id="btnDone" type="button">Готово ✔</button>
+  <div class="mini-reset">
+    <button id="resetBest" type="button">сбросить рекорд 🏆</button>
+    <button id="resetAll" type="button">настройки по умолчанию</button>
+  </div>
+</section>
+
+<div id="fx"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+window.onerror = function(msg, src, line){
+  var d = document.getElementById('errbox');
+  if (d) { d.style.display = 'block'; d.textContent = 'Ошибка: ' + msg + ' (строка ' + line + ')'; }
+};
+(function(){
+  'use strict';
+  function showErr(m){
+    var d = document.getElementById('errbox');
+    if (d) { d.style.display = 'block'; d.textContent = 'Ошибка: ' + m; }
+  }
+  try {
+
+  var ROUND_MS = 60000;
+  var NEXT_DELAY = 500; /* пауза между озвучкой и новым слогом, можно менять */
+
+  var CONS = ['б','в','г','д','ж','з','й','к','л','м','н','п','р','с','т','ф','х','ц','ч','ш','щ'];
+  var VOWS = ['а','о','у','э','ы','и','е','ё','ю','я'];
+
+  function $(id){ return document.getElementById(id); }
+  function UP(c){ return c.toUpperCase(); }
+  function rnd(n){ return Math.floor(Math.random()*n); }
+  function rm(el){ if (el && el.parentNode) el.parentNode.removeChild(el); }
+  function hasClass(el,c){ return (' '+el.className+' ').indexOf(' '+c+' ') > -1; }
+  function addClass(el,c){ if (!hasClass(el,c)) el.className = (el.className+' '+c).replace(/^\s+|\s+$/g,''); }
+  function removeClass(el,c){ el.className = (' '+el.className+' ').replace(' '+c+' ',' ').replace(/^\s+|\s+$/g,''); }
+
+  var store = {
+    get: function(k){ try { return localStorage.getItem(k); } catch(e){ return null; } },
+    set: function(k,v){ try { localStorage.setItem(k,v); } catch(e){} }
+  };
+
+  var DEFAULTS = {
+    from: 0, to: 1,
+    vowels: ['а','о','у'],
+    kase: 'mix',
+    voice: true
+  };
+
+  var SKEY = 'chitaika_v2';
+
+  function loadState(){
+    try {
+      var raw = store.get(SKEY);
+      if (raw) {
+        var s = JSON.parse(raw);
+        if (s && typeof s === 'object') {
+          var o = {};
+          o.vowels = s.vowels; o.kase = s.kase; o.voice = s.voice;
+          var f = parseInt(s.from,10), t = parseInt(s.to,10);
+          if (isNaN(f)) f = DEFAULTS.from;
+          if (isNaN(t)) t = DEFAULTS.to;
+          f = Math.max(0, Math.min(20, f));
+          t = Math.max(0, Math.min(20, t));
+          if (f > t) { var x = f; f = t; t = x; }
+          o.from = f; o.to = t;
+          if (!o.vowels || !o.vowels.length) o.vowels = DEFAULTS.vowels.slice();
+          if (['upper','lower','mix'].indexOf(o.kase) === -1) o.kase = DEFAULTS.kase;
+          return o;
+        }
+      }
+    } catch(e){}
+    return JSON.parse(JSON.stringify(DEFAULTS));
+  }
+
+  var state = loadState();
+  function save(){ store.set(SKEY, JSON.stringify(state)); }
+
+  var mode = 'idle';
+  var roundCount = 0, endTime = 0, timerInt = null, pausedLeft = 0, lastSec = -1;
+  var best = parseInt(store.get('chitaika_best')||'0',10) || 0;
+  var prevC = null, prevSyl = '', firstTap = false, voiceWarned = false, sheetOpen = false;
+  var busy = false; /* блокировка повторных тапов во время озвучки */
+
+  var sylEl=$('syl'), l1=$('l1'), l2=$('l2'), cardEl=$('card'), stageEl=$('stage');
+
+  $('bestTop').textContent = best;
+  $('bestVal').textContent = best;
+
+  (function(){
+    var box = $('flyers'), chars = 'абвгдежзиклмнопрстуфхц', cols = ['#2f6fe0','#ff5a5f','#ffb300','#2fbf71'];
+    for (var i=0;i<14;i++){
+      var s = document.createElement('span');
+      s.className = 'fl';
+      s.textContent = chars.charAt(rnd(chars.length));
+      s.style.left = (Math.random()*92)+'%';
+      s.style.top = (Math.random()*90)+'%';
+      s.style.fontSize = (20+Math.random()*40)+'px';
+      s.style.color = cols[i%4];
+      s.style.animationDuration = (6+Math.random()*8)+'s';
+      box.appendChild(s);
+    }
+  })();
+
+  var ruVoice = null;
+  function pickVoice(){
+    try {
+      if (!window.speechSynthesis) return;
+      var vs = window.speechSynthesis.getVoices();
+      ruVoice = null;
+      for (var i=0;i<vs.length;i++){
+        var lang = (vs[i].lang||'').toLowerCase().replace('_','-');
+        if (lang.indexOf('ru') === 0) { ruVoice = vs[i]; break; }
+      }
+    } catch(e){}
+  }
+  if (window.speechSynthesis) {
+    pickVoice();
+    try { window.speechSynthesis.onvoiceschanged = pickVoice; } catch(e){}
+  }
+  function markTalking(){
+    var b = $('btnSpeak');
+    removeClass(b,'talking'); void b.offsetWidth; addClass(b,'talking');
+  }
+  function speak(text, onFail, onDone){
+    try {
+      if (!window.speechSynthesis || typeof SpeechSynthesisUtterance === 'undefined') {
+        if (onFail) onFail('Браузер не поддерживает озвучку');
+        if (onDone) setTimeout(onDone, NEXT_DELAY);
+        return false;
+      }
+      pickVoice();
+      var synth = window.speechSynthesis;
+      var started = false, ended = false;
+      if (synth.speaking || synth.pending) { try { synth.cancel(); } catch(e){} }
+      try { synth.resume(); } catch(e){}
+      function build(t){
+        var u = new SpeechSynthesisUtterance(t.toLowerCase());
+        u.lang = 'ru-RU'; u.rate = 0.75; u.pitch = 1.1; u.volume = 1;
+        u.onstart = function(){ started = true; markTalking(); };
+        u.onend = function(){
+          if (!ended) { ended = true; if (onDone) onDone(); }
+        };
+        u.onerror = function(){
+          if (!ended) { ended = true; if (onDone) onDone(); }
+        };
+        return u;
+      }
+      var u1 = build(text);
+      if (ruVoice) u1.voice = ruVoice;
+      synth.speak(u1);
+      /* фоллбэк: если onend не сработает, вызываем onDone по таймеру */
+      setTimeout(function(){
+        if (!ended) { ended = true; if (onDone) onDone(); }
+      }, 1800);
+      setTimeout(function(){
+        if (!started && !synth.speaking) {
+          try { synth.cancel(); } catch(e){}
+          try { synth.resume(); } catch(e){}
+          synth.speak(build(text));
+          setTimeout(function(){
+            if (!started && !synth.speaking) {
+              if (onFail) onFail('Голос не найден: установите русский голос в системе');
+            }
+          }, 900);
+        }
+      }, 600);
+      return true;
+    } catch(e) {
+      if (onFail) onFail('Не удалось запустить озвучку');
+      if (onDone) setTimeout(onDone, NEXT_DELAY);
+      return false;
+    }
+  }
+  function voiceFail(msg){
+    if (!voiceWarned) { voiceWarned = true; toast(msg + '. Настройки → «Проверить озвучку»'); }
+  }
+
+  var actx = null;
+  function getAC(){
+    var AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return null;
+    if (!actx) actx = new AC();
+    return actx;
+  }
+  function blip(){
+    try {
+      var c = getAC(); if (!c) return;
+      var o = c.createOscillator(), g = c.createGain();
+      o.type = 'sine';
+      o.frequency.setValueAtTime(340, c.currentTime);
+      o.frequency.exponentialRampToValueAtTime(80, c.currentTime + .09);
+      g.gain.setValueAtTime(.08, c.currentTime);
+      g.gain.exponentialRampToValueAtTime(.001, c.currentTime + .1);
+      o.connect(g); g.connect(c.destination);
+      o.start(); o.stop(c.currentTime + .1);
+    } catch(e){}
+  }
+  function tick(){
+    try {
+      var c = getAC(); if (!c) return;
+      var o = c.createOscillator(), g = c.createGain();
+      o.type = 'square'; o.frequency.value = 880;
+      g.gain.setValueAtTime(.05, c.currentTime);
+      g.gain.exponentialRampToValueAtTime(.001, c.currentTime + .06);
+      o.connect(g); g.connect(c.destination);
+      o.start(); o.stop(c.currentTime + .07);
+    } catch(e){}
+  }
+  function fanfare(){
+    try {
+      var c = getAC(); if (!c) return;
+      var notes = [392, 523, 659, 784];
+      for (var i=0;i<notes.length;i++){
+        (function(f, k){
+          var t0 = c.currentTime + k*0.13;
+          var o = c.createOscillator(), g = c.createGain();
+          o.type = 'triangle'; o.frequency.value = f;
+          g.gain.setValueAtTime(0.001, t0);
+          g.gain.exponentialRampToValueAtTime(0.13, t0 + 0.02);
+          g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.28);
+          o.connect(g); g.connect(c.destination);
+          o.start(t0); o.stop(t0 + 0.32);
+        })(notes[i], i);
+      }
+    } catch(e){}
+  }
+
+  function burst(x, y, n, big){
+    var fx = $('fx'); if (!fx) return;
+    var letters = l1.textContent + l2.textContent + '★●';
+    var cols = ['#2f6fe0','#ff5a5f','#ffd23f','#2fbf71'];
+    for (var i=0;i<n;i++){
+      (function(){
+        var p = document.createElement('span');
+        p.className = 'pt';
+        p.textContent = letters.charAt(rnd(letters.length));
+        p.style.color = cols[rnd(cols.length)];
+        p.style.fontSize = (13+Math.random()*13)+'px';
+        p.style.left = x+'px'; p.style.top = y+'px';
+        fx.appendChild(p);
+        var a = Math.random()*Math.PI*2;
+        var d = (big?150:70) + Math.random()*(big?130:90);
+        var dx = Math.cos(a)*d, dy = Math.sin(a)*d - 40;
+        var rot = -200 + Math.random()*400;
+        if (p.animate) {
+          p.animate([
+            {transform:'translate(-50%,-50%) scale(.5) rotate(0deg)', opacity:1},
+            {transform:'translate(calc(-50% + '+dx+'px), calc(-50% + '+dy+'px)) scale('+(1+Math.random())+') rotate('+rot+'deg)', opacity:0}
+          ], {duration:600+Math.random()*400, easing:'ease-out'}).onfinish = function(){ rm(p); };
+        } else {
+          p.style.transition = 'transform .7s ease-out, opacity .7s ease-out';
+          p.style.transform = 'translate('+dx+'px,'+dy+'px)';
+          p.style.opacity = '0';
+          setTimeout(function(){ rm(p); }, 800);
+        }
+      })();
+    }
+  }
+
+  var toastTimer = null;
+  function toast(msg){
+    var t = $('toast'); t.textContent = msg; addClass(t,'show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function(){ removeClass(t,'show'); }, 3000);
+  }
+
+  function pool(){ return CONS.slice(state.from, state.to+1); }
+  function generate(){
+    var p = pool(), c, v, tries = 0;
+    do { c = p[rnd(p.length)]; } while (p.length > 1 && c === prevC);
+    do { v = state.vowels[rnd(state.vowels.length)]; tries++; } while (c+v === prevSyl && tries < 5);
+    prevC = c; prevSyl = c+v;
+    var up = state.kase === 'upper' || (state.kase === 'mix' && Math.random() < .5);
+    l1.textContent = up ? UP(c) : c;
+    l2.textContent = up ? UP(v) : v;
+    removeClass(sylEl,'pop'); void sylEl.offsetWidth; addClass(sylEl,'pop');
+  }
+
+  /* тап: озвучиваем текущий слог, ждём паузу, показываем следующий */
+  function next(countIt, cx, cy){
+    if (busy) return; /* игнорируем тап во время озвучки */
+
+    if (countIt) {
+      blip();
+      busy = true;
+      addClass(cardEl,'busy');
+
+      function finish(){
+        busy = false;
+        removeClass(cardEl,'busy');
+        generate();
+        if (mode === 'running') { roundCount++; $('roundCount').textContent = roundCount; }
+        var r = cardEl.getBoundingClientRect();
+        burst(cx || (r.left + r.width/2), cy || (r.top + r.height/2), 10, false);
+      }
+
+      if (state.voice) {
+        var voiceFinished = false;
+        var fallback = setTimeout(function(){
+          if (!voiceFinished) { voiceFinished = true; finish(); }
+        }, NEXT_DELAY);
+        speak(prevSyl, voiceFail, function(){
+          if (!voiceFinished) { voiceFinished = true; clearTimeout(fallback); finish(); }
+        });
+      } else {
+        setTimeout(finish, NEXT_DELAY);
+      }
+    } else {
+      generate();
+    }
+    if (!firstTap) { firstTap = true; addClass($('hint'),'off'); }
+  }
+
+  function fmt(ms){
+    var s = Math.max(0, Math.ceil(ms/1000));
+    var m = Math.floor(s/60); s = s % 60;
+    return m + ':' + (s < 10 ? '0' : '') + s;
+  }
+  function updateTimerUI(left){
+    $('timeLeft').textContent = fmt(left);
+    var pct = Math.max(0, Math.min(100, left / ROUND_MS * 100));
+    var fill = $('timefill');
+    fill.style.width = pct + '%';
+    fill.className = pct > 50 ? '' : (pct > 20 ? 'warn' : 'danger');
+  }
+  function updateTimer(){
+    var left = endTime - Date.now();
+    if (left <= 0) { updateTimerUI(0); finishRound(); return; }
+    updateTimerUI(left);
+    var s = Math.ceil(left/1000);
+    if (s !== lastSec) { lastSec = s; if (s <= 3) tick(); }
+  }
+
+  function startRound(){
+    mode = 'running';
+    roundCount = 1; pausedLeft = 0; lastSec = -1;
+    addClass($('startPanel'),'off');
+    removeClass($('runView'),'off');
+    hideResult();
+    $('roundCount').textContent = '1';
+    generate();
+    if (state.voice) speak(prevSyl, voiceFail);
+    blip();
+    endTime = Date.now() + ROUND_MS;
+    updateTimerUI(ROUND_MS);
+    if (timerInt) clearInterval(timerInt);
+    timerInt = setInterval(updateTimer, 200);
+  }
+
+  function finishRound(){
+    if (mode !== 'running') return;
+    if (timerInt) { clearInterval(timerInt); timerInt = null; }
+    busy = false; removeClass(cardEl,'busy');
+    mode = 'finished';
+    fanfare();
+
+    var isNew = roundCount > best && roundCount > 0;
+    if (roundCount > best) { best = roundCount; store.set('chitaika_best', String(best)); }
+    $('bestTop').textContent = best;
+    $('bestVal').textContent = best;
+    $('resNum').textContent = roundCount;
+
+    var stars = roundCount >= 10 ? 3 : (roundCount >= 5 ? 2 : (roundCount > 0 ? 1 : 0));
+    var html = '';
+    for (var i=1;i<=3;i++) html += '<span class="st' + (i <= stars ? ' on' : '') + '">★</span>';
+    $('resStars').innerHTML = html;
+
+    var msg = roundCount === 0 ? 'Попробуем ещё раз! 💪' :
+              stars === 1 ? 'Хорошее начало!' :
+              stars === 2 ? 'Отлично! Так держать!' : 'Супер! Ты читаешь быстро! 🏆';
+    $('resMsg').textContent = msg;
+
+    if (isNew) removeClass($('resRecord'),'off'); else addClass($('resRecord'),'off');
+    showResult();
+    burst(window.innerWidth/2, window.innerHeight/2 - 60, 28, true);
+  }
+
+  function showResult(){ addClass($('result'),'show'); addClass($('resultBack'),'show'); }
+  function hideResult(){ removeClass($('result'),'show'); removeClass($('resultBack'),'show'); }
+
+  function onTap(el, handler){
+    var touched = false;
+    el.addEventListener('touchstart', function(e){
+      touched = true;
+      handler(e);
+    }, {passive:true});
+    el.addEventListener('click', function(e){
+      if (touched) { touched = false; return; }
+      handler(e);
+    });
+  }
+
+  onTap($('btnStart'), function(e){ e.preventDefault(); e.stopPropagation(); startRound(); });
+  onTap($('btnAgain'), function(e){ e.preventDefault(); e.stopPropagation(); startRound(); });
+  onTap($('btnResSettings'), function(e){ e.preventDefault(); e.stopPropagation(); hideResult(); openSheet(); });
+
+  onTap(cardEl, function(e){
+    e.preventDefault();
+    if (mode !== 'running') return;
+    var x = 0, y = 0;
+    if (e.touches && e.touches.length) { x = e.touches[0].clientX; y = e.touches[0].clientY; }
+    else { x = e.clientX; y = e.clientY; }
+    next(true, x, y);
+  });
+
+  var stripEl = $('cstrip'), chips = [];
+  var badgeFrom = document.createElement('span');
+  badgeFrom.className = 'hbadge'; badgeFrom.textContent = 'ОТ';
+  var badgeTo = document.createElement('span');
+  badgeTo.className = 'hbadge'; badgeTo.textContent = 'ДО';
+
+  function buildStrip(){
+    stripEl.innerHTML = ''; chips = [];
+    for (var i=0;i<CONS.length;i++){
+      var d = document.createElement('span');
+      d.className = 'cc';
+      d.textContent = UP(CONS[i]);
+      d.setAttribute('data-i', i);
+      stripEl.appendChild(d);
+      chips.push(d);
+    }
+    updateStrip();
+  }
+
+  function updateStrip(){
+    for (var i=0;i<chips.length;i++){
+      if (i >= state.from && i <= state.to) addClass(chips[i],'on');
+      else removeClass(chips[i],'on');
+    }
+    if (state.from === state.to) {
+      badgeFrom.textContent = 'ОТ·ДО';
+      if (badgeTo.parentNode) badgeTo.parentNode.removeChild(badgeTo);
+      if (badgeFrom.parentNode !== chips[state.from]) chips[state.from].appendChild(badgeFrom);
+    } else {
+      badgeFrom.textContent = 'ОТ';
+      if (badgeFrom.parentNode !== chips[state.from]) chips[state.from].appendChild(badgeFrom);
+      if (badgeTo.parentNode !== chips[state.to]) chips[state.to].appendChild(badgeTo);
+    }
+    $('count').textContent = 'в игре: ' + (state.to - state.from + 1) + ' из 21 • от ' +
+        UP(CONS[state.from]) + ' до ' + UP(CONS[state.to]);
+  }
+
+  var dragHandle = null, rects = [];
+
+  function cacheRects(){
+    rects = [];
+    for (var i=0;i<chips.length;i++) rects.push(chips[i].getBoundingClientRect());
+  }
+  function chipAt(x, y){
+    var bestI = -1, bestD = 1e18;
+    for (var i=0;i<rects.length;i++){
+      var r = rects[i];
+      if (x >= r.left && x <= r.right && y >= r.top - 16 && y <= r.bottom + 16) return i;
+      var cx = r.left + r.width/2, cy = r.top + r.height/2;
+      var d = (x-cx)*(x-cx) + (y-cy)*(y-cy);
+      if (d < bestD) { bestD = d; bestI = i; }
+    }
+    return bestI;
+  }
+  function findChipEl(el){
+    while (el && el !== stripEl) {
+      if (el.nodeType === 1 && (' '+(el.className||'')+' ').indexOf(' cc ') > -1) return el;
+      el = el.parentNode;
+    }
+    return null;
+  }
+
+  function stripStart(e){
+    if (dragHandle) return;
+    var t = e.target, h = null;
+    if (t === badgeFrom) h = 'from';
+    else if (t === badgeTo) h = 'to';
+    else {
+      var chipEl = findChipEl(t);
+      if (chipEl) {
+        var i = parseInt(chipEl.getAttribute('data-i'),10);
+        if (i === state.from) h = 'from';
+        else if (i === state.to) h = 'to';
+      }
+    }
+    if (!h) return;
+    dragHandle = h;
+    addClass(document.body,'dragging');
+    cacheRects();
+    if (e.cancelable) e.preventDefault();
+    document.addEventListener('touchmove', stripMove, {passive:false});
+    document.addEventListener('touchend', stripEnd);
+    document.addEventListener('touchcancel', stripEnd);
+    document.addEventListener('mousemove', stripMove);
+    document.addEventListener('mouseup', stripEnd);
+  }
+  function stripMove(e){
+    if (!dragHandle) return;
+    if (e.cancelable) e.preventDefault();
+    var x, y;
+    if (e.touches && e.touches.length) { x = e.touches[0].clientX; y = e.touches[0].clientY; }
+    else { x = e.clientX; y = e.clientY; }
+    var i = chipAt(x, y);
+    if (i < 0) return;
+    if (dragHandle === 'from') {
+      if (i !== state.from) { state.from = Math.min(i, state.to); updateStrip(); refreshNote(); tick(); }
+    } else {
+      if (i !== state.to) { state.to = Math.max(i, state.from); updateStrip(); refreshNote(); tick(); }
+    }
+  }
+  function stripEnd(){
+    if (!dragHandle) return;
+    dragHandle = null;
+    removeClass(document.body,'dragging');
+    document.removeEventListener('touchmove', stripMove);
+    document.removeEventListener('touchend', stripEnd);
+    document.removeEventListener('touchcancel', stripEnd);
+    document.removeEventListener('mousemove', stripMove);
+    document.removeEventListener('mouseup', stripEnd);
+    save(); afterSettings();
+  }
+  stripEl.addEventListener('touchstart', stripStart, {passive:false});
+  stripEl.addEventListener('mousedown', stripStart);
+
+  function refreshNote(){
+    var p = [], v = [], i, pl = pool();
+    for (i=0;i<pl.length;i++) p.push(UP(pl[i]));
+    for (i=0;i<state.vowels.length;i++) v.push(UP(state.vowels[i]));
+    $('rangeNote').textContent = 'согласные: ' + (p.join(' ') || '—') + ' • гласные: ' + (v.join(' ') || '—');
+  }
+
+  function refreshVowels(){
+    var box = $('vchips'); box.innerHTML = '';
+    for (var i=0;i<VOWS.length;i++){
+      (function(v){
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'vc' + (state.vowels.indexOf(v) > -1 ? ' on' : '');
+        b.textContent = UP(v);
+        onTap(b, function(e){
+          e.preventDefault();
+          var idx = state.vowels.indexOf(v);
+          if (idx > -1 && state.vowels.length === 1) { toast('Оставь хотя бы одну гласную 🙂'); return; }
+          if (idx > -1) state.vowels.splice(idx,1); else state.vowels.push(v);
+          state.vowels.sort(function(a,b){ return VOWS.indexOf(a)-VOWS.indexOf(b); });
+          save(); refreshVowels(); refreshNote(); afterSettings();
+        });
+        box.appendChild(b);
+      })(VOWS[i]);
+    }
+  }
+
+  function refreshCase(){
+    var btns = $('caseSeg').getElementsByTagName('button');
+    for (var i=0;i<btns.length;i++)
+      btns[i].className = (btns[i].getAttribute('data-case') === state.kase) ? 'active' : '';
+  }
+  function afterSettings(){
+    var okC = pool().indexOf(prevC) > -1;
+    var okV = prevSyl && state.vowels.indexOf(prevSyl.charAt(1)) > -1;
+    if ((!okC || !okV) && mode === 'running' && !busy) generate();
+  }
+
+  var presets = document.getElementsByClassName('preset');
+  for (var pi=0;pi<presets.length;pi++){
+    (function(b){
+      onTap(b, function(e){
+        e.preventDefault();
+        var r = b.getAttribute('data-range').split('-');
+        state.from = parseInt(r[0],10);
+        state.to = parseInt(r[1],10);
+        save(); updateStrip(); refreshNote(); afterSettings();
+      });
+    })(presets[pi]);
+  }
+
+  var caseBtns = $('caseSeg').getElementsByTagName('button');
+  for (var ci=0;ci<caseBtns.length;ci++){
+    (function(b){
+      onTap(b, function(e){
+        e.preventDefault();
+        state.kase = b.getAttribute('data-case');
+        save(); refreshCase();
+        if (mode === 'running' && !busy) generate();
+      });
+    })(caseBtns[ci]);
+  }
+
+  $('voiceChk').addEventListener('change', function(){
+    state.voice = this.checked; save();
+  });
+
+  onTap($('btnTestVoice'), function(e){
+    e.preventDefault(); e.stopPropagation();
+    voiceWarned = true;
+    speak('Привет! Давай читать слоги!', function(msg){
+      toast('❌ ' + msg + '. Проверьте системные настройки синтеза речи');
+    });
+    setTimeout(function(){
+      if (window.speechSynthesis && (window.speechSynthesis.speaking || window.speechSynthesis.pending)) {
+        toast('✔ Озвучка работает!');
+      }
+    }, 1500);
+  });
+
+  onTap($('resetBest'), function(e){
+    e.preventDefault();
+    best = 0; store.set('chitaika_best','0');
+    $('bestTop').textContent = 0; $('bestVal').textContent = 0;
+    toast('Рекорд сброшен');
+  });
+  onTap($('resetAll'), function(e){
+    e.preventDefault();
+    state = JSON.parse(JSON.stringify(DEFAULTS)); save();
+    updateStrip(); refreshVowels(); refreshCase();
+    $('voiceChk').checked = state.voice; refreshNote();
+    if (mode === 'running' && !busy) generate();
+    toast('Настройки по умолчанию');
+  });
+
+  function openSheet(){
+    sheetOpen = true;
+    if (mode === 'running' && timerInt) {
+      pausedLeft = endTime - Date.now();
+      clearInterval(timerInt); timerInt = null;
+    }
+    addClass($('sheet'),'open'); addClass($('backdrop'),'open');
+  }
+  function closeSheet(){
+    sheetOpen = false;
+    removeClass($('sheet'),'open'); removeClass($('backdrop'),'open');
+    if (mode === 'running' && pausedLeft > 0) {
+      endTime = Date.now() + pausedLeft; pausedLeft = 0;
+      timerInt = setInterval(updateTimer, 200);
+    }
+    if (mode === 'finished') showResult();
+  }
+  onTap($('btnSettings'), function(e){ e.preventDefault(); e.stopPropagation(); openSheet(); });
+  onTap($('btnClose'), function(e){ e.preventDefault(); closeSheet(); });
+  onTap($('btnDone'), function(e){ e.preventDefault(); closeSheet(); });
+  onTap($('backdrop'), function(e){ e.preventDefault(); closeSheet(); });
+
+  onTap($('btnNext'), function(e){
+    e.preventDefault(); e.stopPropagation();
+    if (mode === 'running') next(true, 0, 0);
+  });
+  onTap($('btnSpeak'), function(e){
+    e.preventDefault(); e.stopPropagation();
+    voiceWarned = true;
+    speak(prevSyl, function(msg){ toast('❌ ' + msg); });
+  });
+
+  var tips = [
+    'Попросите ребёнка прочитать слог вслух 🗣',
+    'Тяните первый звук: б-б-б-а!',
+    'Начните с 2–3 согласных, потом добавляйте новые',
+    'Хвалите за каждую попытку 🌟',
+    'Синий квадрат — согласный, красный — гласный'
+  ];
+  var ti = 0, tipEl = $('tip');
+  tipEl.textContent = tips[0];
+  setInterval(function(){
+    tipEl.style.opacity = 0;
+    setTimeout(function(){ ti = (ti+1) % tips.length; tipEl.textContent = tips[ti]; tipEl.style.opacity = 1; }, 400);
+  }, 8000);
+
+  buildStrip(); refreshVowels(); refreshCase();
+  $('voiceChk').checked = state.voice;
+  refreshNote();
+
+  } catch(err) {
+    showErr(err && err.message ? err.message : String(err));
+  }
+})();
+</script>
+</body>
+</html>
