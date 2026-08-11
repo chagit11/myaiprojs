@@ -15,13 +15,13 @@
     --green:#2fbf71; --yellow:#ffd23f;
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-  html,body{margin:0;padding:0}
+  html,body{margin:0;padding:0;touch-action:manipulation}
   body{
     font-family:'Nunito',Arial,sans-serif;color:var(--ink);
     background:linear-gradient(180deg,#c9e8ff 0%,#e9f7ff 55%,#fdfef2 100%);
-    min-height:100vh;min-height:100dvh;overflow-x:hidden;touch-action:manipulation;
+    min-height:100vh;min-height:100dvh;overflow-x:hidden;
   }
-  button{font-family:inherit;color:inherit;cursor:pointer}
+  button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:none;padding:0}
   .off{display:none !important}
 
   #errbox{display:none;position:fixed;top:8px;left:8px;right:8px;z-index:99;
@@ -85,7 +85,7 @@
   .best-chip{margin-top:24px;background:#fff;border:3px solid var(--ink);border-radius:999px;
         padding:9px 18px;font-weight:900;box-shadow:0 4px 0 rgba(34,48,74,.2)}
 
-  .run-view{display:flex;flex-direction:column;align-items:center;width:100%}
+  .run-view{display:flex;flex-direction:column;align-items:center;width:100%;touch-action:manipulation}
   .hint{font-weight:800;font-size:13px;color:#5f7095;text-align:center;margin:0 0 12px;transition:opacity .6s}
   .hint.off{opacity:0}
   .hud{display:flex;margin-bottom:10px}
@@ -98,24 +98,30 @@
   .timebar i.warn{background:#ffb300}
   .timebar i.danger{background:var(--red)}
 
-  .card{background:#fff;border:4px solid var(--ink);border-radius:34px 40px 34px 42px;
+  /* КАРТОЧКА ТЕПЕРЬ — КНОПКА. iOS гарантированно даёт ей touch-события */
+  .card{
+    -webkit-appearance:none;appearance:none;
+    display:block;width:auto;
+    background:#fff;border:4px solid var(--ink);border-radius:34px 40px 34px 42px;
     padding:26px 46px;box-shadow:0 14px 0 rgba(34,48,74,.16);
-    transform:rotate(-2deg);transition:transform .15s;text-align:center;cursor:pointer}
+    transform:rotate(-2deg);transition:transform .15s;text-align:center;
+    touch-action:manipulation;cursor:pointer;
+  }
   .card:active{transform:rotate(-2deg) scale(.95) translateY(8px)}
   .syl{display:block;font-weight:900;line-height:.95;letter-spacing:.02em;
-       font-size:96px;font-size:clamp(84px,34vw,220px)}
+       font-size:96px;font-size:clamp(84px,34vw,220px);pointer-events:none}
   .syl.pop{animation:pop .45s cubic-bezier(.2,1.4,.4,1)}
   @keyframes pop{0%{transform:scale(.35) rotate(9deg);opacity:0}
     60%{transform:scale(1.1);opacity:1}100%{transform:scale(1)}}
   .ltr-c{color:var(--blue)} .ltr-v{color:var(--red)}
-  .scheme{display:flex;justify-content:center;margin-top:20px}
+  .scheme{display:flex;justify-content:center;margin-top:20px;pointer-events:none}
   .sq{width:24px;height:24px;border:3px solid var(--ink);border-radius:7px;margin:0 7px}
   .sq-c{background:var(--blue)} .sq-v{background:var(--red)}
 
   .actions{display:flex;width:100%;max-width:420px;margin-top:20px}
   .btn{flex:1;border:3px solid var(--ink);border-radius:18px;padding:15px 8px;
        font-weight:900;font-size:15.5px;box-shadow:0 6px 0 rgba(34,48,74,.3);
-       transition:transform .1s;margin:0 6px}
+       transition:transform .1s;margin:0 6px;touch-action:manipulation}
   .btn:active{transform:translateY(5px);box-shadow:0 1px 0 rgba(34,48,74,.3)}
   .btn-speak{background:var(--yellow)}
   .btn-next{background:var(--green);color:#fff}
@@ -147,7 +153,7 @@
   .btn-again{width:100%;margin-top:18px;background:var(--green);color:#fff;border:3px solid var(--ink);
        border-radius:18px;padding:16px;font-weight:900;font-size:18px;box-shadow:0 6px 0 rgba(34,48,74,.3)}
   .btn-again:active{transform:translateY(4px);box-shadow:0 1px 0 rgba(34,48,74,.3)}
-  .btn-mini-settings{margin-top:10px;border:none;background:none;font-weight:800;
+  .btn-mini-settings{margin-top:10px;font-weight:800;
        color:#7c8aa9;text-decoration:underline;font-size:14px}
 
   .backdrop{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(34,48,74,.45);opacity:0;
@@ -185,27 +191,28 @@
   .cc{position:relative;min-width:30px;height:44px;flex:1;margin:3px;
        display:flex;align-items:center;justify-content:center;
        border:3px solid rgba(34,48,74,.25);border-radius:12px;font-weight:900;font-size:17px;
-       background:#eef1f8;color:#a3aec8;transition:background .2s,color .2s,border-color .2s}
+       background:#eef1f8;color:#a3aec8;transition:background .2s,color .2s,border-color .2s;
+       touch-action:none}
   .cc.on{background:var(--blue-bg);border-color:var(--ink);color:var(--blue)}
   .hbadge{position:absolute;top:-15px;left:50%;transform:translateX(-50%);
        font-size:10px;font-weight:900;letter-spacing:.04em;background:var(--yellow);
        border:2.5px solid var(--ink);border-radius:8px;padding:3px 7px;color:var(--ink);
        white-space:nowrap;cursor:grab;touch-action:none;z-index:2;
-       box-shadow:0 3px 0 rgba(34,48,74,.3)}
+       box-shadow:0 3px 0 rgba(34,48,74,.3);pointer-events:none}
   body.dragging{cursor:grabbing}
   body.dragging .hbadge{transform:translateX(-50%) scale(1.18);box-shadow:0 5px 0 rgba(34,48,74,.3)}
 
   .vchips{display:flex;flex-wrap:wrap}
   .vc{position:relative;min-width:42px;height:44px;flex:1;margin:4px;
        border-radius:12px;border:3px solid rgba(34,48,74,.25);background:#eef1f8;color:#a3aec8;
-       font-weight:900;font-size:18px}
+       font-weight:900;font-size:18px;touch-action:manipulation}
   .vc.on{background:var(--red-bg);border-color:var(--ink);color:var(--red)}
   .vc:active{transform:scale(.92)}
   .sub-note{font-size:12px;font-weight:700;color:#8b98b5;margin-top:8px}
 
   .seg{display:flex;border:3px solid var(--ink);border-radius:14px;overflow:hidden}
-  .seg button{flex:1;padding:12px 2px;border:none;background:#fff;
-       font-weight:800;font-size:13px;border-right:3px solid var(--ink)}
+  .seg button{flex:1;padding:12px 2px;background:#fff;
+       font-weight:800;font-size:13px;border-right:3px solid var(--ink);touch-action:manipulation}
   .seg button:last-child{border-right:none}
   .seg button.active{background:var(--yellow)}
 
@@ -230,7 +237,7 @@
        border-radius:18px;padding:16px;font-weight:900;font-size:17px;box-shadow:0 6px 0 rgba(34,48,74,.3)}
   .done:active{transform:translateY(4px)}
   .mini-reset{text-align:center;margin-top:14px}
-  .mini-reset button{border:none;background:none;font-weight:800;font-size:12.5px;
+  .mini-reset button{font-weight:800;font-size:12.5px;
        color:#7c8aa9;text-decoration:underline;margin:0 8px}
 
   #fx{position:fixed;top:0;left:0;right:0;bottom:0;pointer-events:none;z-index:36}
@@ -246,7 +253,6 @@
 <body>
 
 <div id="errbox"></div>
-<noscript><div style="padding:20px;font-weight:800">Для работы сайта нужен включённый JavaScript.</div></noscript>
 
 <div class="sky">
   <div class="sun"></div>
@@ -274,21 +280,21 @@
     </div>
 
     <div class="run-view off" id="runView">
-      <p class="hint" id="hint">👆 нажимай на экран: слог озвучится и появится новый</p>
+      <p class="hint" id="hint">👆 нажимай на слог: озвучится и появится новый</p>
       <div class="hud">
         <div class="pill">⏱ <b id="timeLeft">1:00</b></div>
         <div class="pill">📖 <b id="roundCount">0</b></div>
       </div>
       <div class="timebar"><i id="timefill"></i></div>
 
-      <div class="card" id="card">
+      <button class="card" id="card" type="button">
         <span class="syl" id="syl"><span class="ltr-c" id="l1">б</span><span class="ltr-v" id="l2">а</span></span>
         <span class="scheme"><i class="sq sq-c"></i><i class="sq sq-v"></i></span>
-      </div>
+      </button>
 
       <div class="actions">
-        <button class="btn btn-speak" id="btnSpeak">🔊 Послушать</button>
-        <button class="btn btn-next" id="btnNext">Дальше ➜</button>
+        <button class="btn btn-speak" id="btnSpeak" type="button">🔊 Послушать</button>
+        <button class="btn btn-next" id="btnNext" type="button">Дальше ➜</button>
       </div>
       <div class="range-note" id="rangeNote"></div>
     </div>
@@ -305,8 +311,8 @@
   <div class="res-label">слогов за минуту</div>
   <div class="res-msg" id="resMsg"></div>
   <span class="res-record off" id="resRecord">🎉 Новый рекорд!</span>
-  <button class="btn-again" id="btnAgain">🔄 Повторить</button><br>
-  <button class="btn-mini-settings" id="btnResSettings">⚙ Настройки</button>
+  <button class="btn-again" id="btnAgain" type="button">🔄 Повторить</button><br>
+  <button class="btn-mini-settings" id="btnResSettings" type="button">⚙ Настройки</button>
 </div>
 
 <div class="backdrop" id="backdrop"></div>
@@ -315,18 +321,18 @@
   <div class="handle"></div>
   <div class="sheet-head">
     <h2>Настройки</h2>
-    <button class="close" id="btnClose">✕</button>
+    <button class="close" id="btnClose" type="button">✕</button>
   </div>
 
   <div class="sec">
     <div class="sec-title"><span class="dot dot-c"></span>Согласные: от… до…</div>
-    <div class="sub-note" style="margin:0 0 4px">Зажмите метку «ОТ» или «ДО» (или букву под ней) и, не отрывая пальца, проведите до нужной буквы</div>
+    <div class="sub-note" style="margin:0 0 4px">Зажмите метку «ОТ» или «ДО» и, не отрывая пальца, проведите до нужной буквы</div>
     <div class="cstrip" id="cstrip"></div>
     <div class="presets">
-      <button class="preset" data-range="0-1">Б–В</button>
-      <button class="preset" data-range="0-3">Старт: Б–Д</button>
-      <button class="preset" data-range="0-9">Б–М</button>
-      <button class="preset" data-range="0-20">Все согласные</button>
+      <button class="preset" type="button" data-range="0-1">Б–В</button>
+      <button class="preset" type="button" data-range="0-3">Старт: Б–Д</button>
+      <button class="preset" type="button" data-range="0-9">Б–М</button>
+      <button class="preset" type="button" data-range="0-20">Все согласные</button>
     </div>
     <div class="count" id="count"></div>
   </div>
@@ -340,9 +346,9 @@
   <div class="sec">
     <div class="sec-title">🔤 Какие буквы показывать</div>
     <div class="seg" id="caseSeg">
-      <button data-case="upper">БОЛЬШИЕ</button>
-      <button data-case="lower">маленькие</button>
-      <button data-case="mix">вперемешку</button>
+      <button type="button" data-case="upper">БОЛЬШИЕ</button>
+      <button type="button" data-case="lower">маленькие</button>
+      <button type="button" data-case="mix">вперемешку</button>
     </div>
   </div>
 
@@ -352,11 +358,4 @@
       <span>Озвучивать слог при нажатии</span>
       <label class="sw"><input type="checkbox" id="voiceChk"><i class="track"></i><i class="knob"></i></label>
     </div>
-    <button class="btn-test" id="btnTestVoice">🎤 Проверить озвучку</button>
-    <div class="sub-note">Если звука нет: Android — Настройки → Язык и ввод → Синтез речи (русский голос). iPhone — Настройки → Универсальный доступ → Устный контент → Голоса → Русский.</div>
-  </div>
-
-  <button class="done" id="btnDone">Готово ✔</button>
-  <div class="mini-reset">
-    <button id="resetBest">сбросить рекорд 🏆</button>
-    <button id="resetAll">настройки по у
+    <button class="btn-test" id="btnTestVoice" type="butto 
