@@ -1,7 +1,7 @@
 const CACHE_NAME = 'alphabet-v1';
 const ASSETS = [
   './',
-  './alphabet.html',
+  './index.html',
   './manifest.json'
 ];
 
@@ -27,7 +27,7 @@ self.addEventListener('fetch', (event) => {
         const clone = response.clone();
         caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
         return response;
-      }).catch(() => caches.match('./alphabet.html'));
+      }).catch(() => caches.match('./index.html'));
     })
   );
 });
