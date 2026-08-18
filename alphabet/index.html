@@ -1,0 +1,810 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#e94560">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Алфавит">
+  <link rel="manifest" href="/myaiprojs/alphabet/manifest.json">
+  <title>Русский алфавит</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: linear-gradient(145deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+      color: #fff;
+    }
+
+    .app {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      padding: 8px;
+      gap: 8px;
+    }
+
+    header {
+      display: flex;
+      flex-shrink: 0;
+      padding: 4px 8px;
+    }
+
+    .top-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: nowrap;
+      width: 100%;
+      overflow-x: auto;
+    }
+
+    .find-group {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      flex-wrap: nowrap;
+      flex-shrink: 0;
+    }
+
+    .find-label {
+      font-size: clamp(0.75rem, 2vw, 0.95rem);
+      font-weight: 600;
+      opacity: 0.9;
+      white-space: nowrap;
+    }
+
+    .mode-btn {
+      flex-shrink: 0;
+      padding: 6px 11px;
+      border: 2px solid rgba(255,255,255,0.25);
+      background: rgba(255,255,255,0.08);
+      color: #fff;
+      border-radius: 999px;
+      font-size: clamp(0.65rem, 1.7vw, 0.8rem);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-weight: 500;
+      white-space: nowrap;
+    }
+
+    .mode-btn:hover {
+      background: rgba(255,255,255,0.15);
+    }
+
+    .mode-btn.active {
+      background: #e94560;
+      border-color: #e94560;
+      box-shadow: 0 0 12px rgba(233, 69, 96, 0.5);
+    }
+
+    .play-all-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 48px;
+      height: 48px;
+      padding: 0;
+      background: #3498db;
+      border: none;
+      border-radius: 50%;
+      color: #fff;
+      cursor: pointer;
+      transition: all 0.2s;
+      flex-shrink: 0;
+      box-shadow: 0 0 12px rgba(52, 152, 219, 0.45);
+    }
+
+    .play-all-btn:hover {
+      background: #5dade2;
+      transform: scale(1.08);
+    }
+
+    .play-all-btn.playing {
+      background: #e74c3c;
+      box-shadow: 0 0 10px rgba(231, 76, 60, 0.5);
+    }
+
+    .play-all-btn svg {
+      width: 18px;
+      height: 18px;
+      fill: currentColor;
+    }
+
+    .play-all-btn.playing .icon-play { display: none !important; }
+    .play-all-btn.playing .icon-stop { display: block !important; }
+    .play-all-btn:not(.playing) .icon-play { display: block; }
+    .play-all-btn:not(.playing) .icon-stop { display: none; }
+
+    .replay-row {
+      display: none;
+      justify-content: center;
+      flex-shrink: 0;
+      padding: 2px 0;
+    }
+
+    .replay-row.visible {
+      display: flex;
+    }
+
+
+
+    #play-bar {
+      display: none;
+      flex-shrink: 0;
+      align-items: center;
+      justify-content: center;
+      min-height: 3.4em;
+      padding: 10px 14px;
+      margin: 0 4px;
+    }
+
+    #play-bar.visible {
+      display: flex;
+    }
+
+    #find-task {
+      display: none;
+      flex-shrink: 0;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 10px 14px;
+      background: rgba(233, 69, 96, 0.2);
+      border: 2px solid rgba(233, 69, 96, 0.5);
+      border-radius: 16px;
+      margin: 0 4px;
+      flex-wrap: wrap;
+      min-height: 3.4em;
+    }
+
+    #find-task.visible {
+      display: flex;
+    }
+
+    .task-label {
+      font-size: clamp(0.85rem, 2.2vw, 1.1rem);
+      opacity: 0.9;
+    }
+
+    .task-letter {
+      font-size: clamp(1.8rem, 6vw, 3rem);
+      font-weight: 800;
+      line-height: 1;
+      min-width: 2.5em;
+      min-height: 1.15em;
+      text-align: center;
+      text-shadow: 0 0 20px rgba(233, 69, 96, 0.5);
+      letter-spacing: 0.05em;
+      display: inline-block;
+    }
+
+    .task-letter.hidden-letter {
+      visibility: hidden;
+      /* место сохраняется — без сдвига вёрстки */
+    }
+
+    .replay-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 40px;
+      height: 40px;
+      padding: 0;
+      background: #e94560;
+      border: none;
+      border-radius: 50%;
+      color: #fff;
+      cursor: pointer;
+      transition: all 0.2s;
+      box-shadow: 0 0 12px rgba(233, 69, 96, 0.4);
+    }
+
+    .replay-btn:hover {
+      background: #ff6b81;
+      transform: scale(1.08);
+    }
+
+    .replay-btn:active {
+      transform: scale(0.96);
+    }
+
+    .replay-btn svg {
+      width: 20px;
+      height: 20px;
+      fill: currentColor;
+    }
+
+    .score-mini {
+      margin-left: auto;
+      display: flex;
+      gap: 12px;
+      font-size: clamp(0.75rem, 1.8vw, 0.9rem);
+      opacity: 0.9;
+    }
+
+    .score-mini span {
+      font-weight: 700;
+    }
+
+    .content {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    #alphabet-view {
+      flex: 1;
+      display: grid;
+      grid-template-columns: repeat(11, 1fr);
+      grid-auto-rows: 1fr;
+      gap: 6px;
+      padding: 4px;
+    }
+
+    .letter {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: rgba(255,255,255,0.1);
+      border: 2px solid rgba(255,255,255,0.15);
+      border-radius: 12px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      user-select: none;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .letter:hover {
+      background: rgba(255,255,255,0.18);
+      transform: scale(1.04);
+    }
+
+    .letter:active,
+    .letter.speaking {
+      background: #e94560;
+      border-color: #e94560;
+      transform: scale(0.96);
+      box-shadow: 0 0 20px rgba(233, 69, 96, 0.6);
+    }
+
+    .letter.correct {
+      background: #2ecc71 !important;
+      border-color: #2ecc71 !important;
+      box-shadow: 0 0 20px rgba(46, 204, 113, 0.6);
+      animation: pulse 0.45s ease;
+    }
+
+    .letter.wrong {
+      background: #e74c3c !important;
+      border-color: #e74c3c !important;
+      animation: shake 0.4s ease;
+    }
+
+    .letter.selected {
+      background: #f39c12 !important;
+      border-color: #f39c12 !important;
+      box-shadow: 0 0 16px rgba(243, 156, 18, 0.55);
+    }
+
+    .letter .char {
+      font-size: clamp(1.3rem, 5vw, 3rem);
+      font-weight: 700;
+      line-height: 1;
+    }
+
+    .letter .name {
+      font-size: clamp(0.5rem, 1.5vw, 0.8rem);
+      opacity: 0.75;
+      margin-top: 2px;
+      font-weight: 400;
+    }
+
+    .install-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      background: rgba(52, 152, 219, 0.75);
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      user-select: none;
+      color: #fff;
+      padding: 4px;
+      opacity: 0.75;
+      justify-self: end;
+      grid-column: -2 / -1;
+    }
+
+    .install-btn:hover {
+      opacity: 1;
+      transform: scale(1.04);
+    }
+
+    .install-btn:active {
+      transform: scale(0.96);
+      opacity: 0.9;
+    }
+
+    .install-btn .icons {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .install-btn svg {
+      width: clamp(18px, 4vw, 28px);
+      height: clamp(18px, 4vw, 28px);
+      fill: currentColor;
+    }
+
+    .install-btn .label {
+      font-size: clamp(0.5rem, 1.4vw, 0.75rem);
+      opacity: 0.9;
+      font-weight: 600;
+      text-align: center;
+      line-height: 1.2;
+    }
+
+    .feedback {
+      text-align: center;
+      font-size: clamp(0.9rem, 2.3vw, 1.1rem);
+      font-weight: 600;
+      min-height: 1.4em;
+      padding: 4px;
+      flex-shrink: 0;
+    }
+
+    .feedback.correct { color: #2ecc71; }
+    .feedback.wrong { color: #e74c3c; }
+
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.1); }
+    }
+
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      25% { transform: translateX(-6px); }
+      75% { transform: translateX(6px); }
+    }
+
+    @media (max-width: 700px) {
+      #alphabet-view {
+        grid-template-columns: repeat(6, 1fr);
+        grid-auto-rows: 1fr;
+      }
+      .letter .name {
+        display: none;
+      }
+      .score-mini {
+        margin-left: 0;
+        width: 100%;
+        justify-content: center;
+      }
+    }
+
+    @media (max-height: 500px) {
+      .letter .name { display: none; }
+      header { padding: 2px 4px; }
+      h1 { font-size: 0.85rem; }
+      #find-task { padding: 6px 10px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div class="top-bar">
+        <button class="mode-btn active" data-mode="alphabet" id="btn-alphabet">Алфавит</button>
+        <div class="find-group">
+          <span class="find-label">Найди:</span>
+          <button class="mode-btn" data-mode="find">Букву</button>
+          <button class="mode-btn" data-mode="sound">Звук</button>
+          <button class="mode-btn" data-mode="pairs">Слог</button>
+        </div>
+      </div>
+    </header>
+
+    <div id="play-bar" class="visible">
+      <button class="play-all-btn visible" id="play-all-btn" title="Все буквы">
+        <svg class="icon-play" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+        <svg class="icon-stop" viewBox="0 0 24 24" style="display:none"><path d="M6 6h12v12H6z"/></svg>
+      </button>
+    </div>
+
+    <div id="find-task">
+      <span class="task-label" id="task-label">Найди букву:</span>
+      <span class="task-letter" id="task-char">А</span>
+      <div class="score-mini">
+        <div>Верно: <span id="score-correct">0</span></div>
+        <div>Ошибок: <span id="score-wrong">0</span></div>
+      </div>
+    </div>
+
+    <div class="replay-row">
+      <button class="replay-btn" id="replay-btn" title="Повторить">
+        <svg viewBox="0 0 24 24"><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/></svg>
+      </button>
+    </div>
+
+    <div class="feedback" id="feedback"></div>
+
+    <div class="content">
+      <div id="alphabet-view"></div>
+    </div>
+  </div>
+
+  <script>
+    const alphabet = [
+      { char: 'А', name: 'а', word: 'арбуз' },
+      { char: 'Б', name: 'бэ', word: 'банан' },
+      { char: 'В', name: 'вэ', word: 'вафли' },
+      { char: 'Г', name: 'гэ', word: 'гриб' },
+      { char: 'Д', name: 'дэ', word: 'дом' },
+      { char: 'Е', name: 'е', word: 'ель' },
+      { char: 'Ё', name: 'ё', word: 'ёжик' },
+      { char: 'Ж', name: 'жэ', word: 'жук' },
+      { char: 'З', name: 'зэ', word: 'зонт' },
+      { char: 'И', name: 'и', word: 'иголка' },
+      { char: 'Й', name: 'й', word: 'йогурт' },
+      { char: 'К', name: 'кэ', word: 'кот' },
+      { char: 'Л', name: 'лэ', word: 'лимон' },
+      { char: 'М', name: 'мэ', word: 'мама' },
+      { char: 'Н', name: 'нэ', word: 'нос' },
+      { char: 'О', name: 'о', word: 'облако' },
+      { char: 'П', name: 'пэ', word: 'папа' },
+      { char: 'Р', name: 'рэ', word: 'рыба' },
+      { char: 'С', name: 'сэ', word: 'слон' },
+      { char: 'Т', name: 'тэ', word: 'трава' },
+      { char: 'У', name: 'у', word: 'улитка' },
+      { char: 'Ф', name: 'фэ', word: 'фонарь' },
+      { char: 'Х', name: 'хэ', word: 'хлеб' },
+      { char: 'Ц', name: 'цэ', word: 'цветок' },
+      { char: 'Ч', name: 'чэ', word: 'часы' },
+      { char: 'Ш', name: 'шэ', word: 'шар' },
+      { char: 'Щ', name: 'щ', word: 'щука' },
+      { char: 'Ъ', name: 'твёрдый знак', word: 'подъезд' },
+      { char: 'Ы', name: 'ы', word: 'мышь' },
+      { char: 'Ь', name: 'мягкий знак', word: 'конь' },
+      { char: 'Э', name: 'э', word: 'эхо' },
+      { char: 'Ю', name: 'ю', word: 'юла' },
+      { char: 'Я', name: 'я', word: 'яблоко' }
+    ];
+
+    const consonants = [1, 2, 3, 4, 7, 8, 11, 12, 13, 14, 16, 17, 18, 19, 21, 22, 23, 24, 25, 26];
+    const vowels = [0, 5, 6, 9, 15, 20, 30, 31, 32];
+
+    let voices = [];
+    let currentUtterance = null;
+    let mode = 'alphabet';
+    let targetIndex = -1;
+    let targetPair = [];
+    let selectedPair = [];
+    let scoreCorrect = 0;
+    let scoreWrong = 0;
+    let answered = false;
+    let letterElements = [];
+    let isPlayingAll = false;
+    let playAllIndex = 0;
+
+    function loadVoices() {
+      voices = speechSynthesis.getVoices();
+    }
+    speechSynthesis.onvoiceschanged = loadVoices;
+    loadVoices();
+
+    function speak(text, onEnd) {
+      if (currentUtterance) speechSynthesis.cancel();
+      const utter = new SpeechSynthesisUtterance(text);
+      utter.lang = 'ru-RU';
+      utter.rate = 0.85;
+      utter.pitch = 1;
+      const ruVoice = voices.find(v => v.lang.startsWith('ru')) || voices.find(v => v.lang.includes('RU'));
+      if (ruVoice) utter.voice = ruVoice;
+      utter.onend = () => { currentUtterance = null; if (onEnd) onEnd(); };
+      currentUtterance = utter;
+      speechSynthesis.speak(utter);
+    }
+
+    const alphabetView = document.getElementById('alphabet-view');
+    const playAllBtn = document.getElementById('play-all-btn');
+    // playAllBtn после вставки в DOM
+    const findTask = document.getElementById('find-task');
+    const taskLabel = document.getElementById('task-label');
+    const taskChar = document.getElementById('task-char');
+    const feedback = document.getElementById('feedback');
+    const scoreCorrectEl = document.getElementById('score-correct');
+    const scoreWrongEl = document.getElementById('score-wrong');
+    // playAllBtn создаётся выше
+    const replayBtn = document.getElementById('replay-btn');
+
+    alphabet.forEach((item, idx) => {
+      const el = document.createElement('div');
+      el.className = 'letter';
+      el.dataset.index = idx;
+      el.innerHTML = '<span class="char">' + item.char + '</span><span class="name">' + item.name + '</span>';
+      el.addEventListener('click', () => onLetterClick(idx, el));
+      alphabetView.appendChild(el);
+      letterElements.push(el);
+    });
+
+
+    const installBtn = document.createElement('div');
+    installBtn.className = 'install-btn';
+    installBtn.title = 'Установить';
+    installBtn.innerHTML =
+      '<div class="icons"><svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg></div>' +
+      '<span class="label">Установить</span>';
+    let deferredPrompt = null;
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+    });
+
+    installBtn.addEventListener('click', async () => {
+      if (deferredPrompt) {
+        deferredPrompt.prompt();
+        const choice = await deferredPrompt.userChoice;
+        deferredPrompt = null;
+        if (choice.outcome === 'accepted') {
+          feedback.textContent = 'Приложение установлено!';
+          feedback.className = 'feedback correct';
+          setTimeout(() => { feedback.textContent = ''; feedback.className = 'feedback'; }, 2000);
+        }
+        return;
+      }
+      // Fallback: скачать HTML
+      const html = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+      const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'index.html';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      feedback.textContent = 'Файл сохранён. На Android: меню → «Установить приложение» / «На экран»';
+      feedback.className = 'feedback correct';
+      setTimeout(() => { feedback.textContent = ''; feedback.className = 'feedback'; }, 4000);
+    });
+    alphabetView.appendChild(installBtn);
+
+    function clearHighlights() {
+      letterElements.forEach(el => el.classList.remove('speaking', 'correct', 'wrong', 'selected'));
+    }
+
+    function stopPlayAll() {
+      isPlayingAll = false;
+      playAllIndex = 0;
+      speechSynthesis.cancel();
+      clearHighlights();
+      playAllBtn.classList.remove('playing');
+    }
+
+    function playNextLetter() {
+      if (!isPlayingAll || playAllIndex >= alphabet.length) {
+        stopPlayAll();
+        return;
+      }
+      clearHighlights();
+      const el = letterElements[playAllIndex];
+      el.classList.add('speaking');
+      speak(alphabet[playAllIndex].name, () => {
+        el.classList.remove('speaking');
+        playAllIndex++;
+        if (isPlayingAll) setTimeout(playNextLetter, 250);
+      });
+    }
+
+    playAllBtn.addEventListener('click', () => {
+      if (isPlayingAll) { stopPlayAll(); return; }
+      isPlayingAll = true;
+      playAllIndex = 0;
+      playAllBtn.classList.add('playing');
+      playNextLetter();
+    });
+
+    function onLetterClick(idx, el) {
+      if (mode === 'alphabet') {
+        if (isPlayingAll) {
+          // продолжить озвучку с этой буквы
+          speechSynthesis.cancel();
+          currentUtterance = null;
+          playAllIndex = idx;
+          clearHighlights();
+          playNextLetter();
+          return;
+        }
+        clearHighlights();
+        el.classList.add('speaking');
+        speak(alphabet[idx].name, () => el.classList.remove('speaking'));
+        return;
+      }
+
+      if (isPlayingAll) stopPlayAll();
+
+      if (answered) return;
+
+      if (mode === 'pairs') {
+        if (selectedPair.includes(idx)) return;
+        selectedPair.push(idx);
+        el.classList.add('selected');
+        if (selectedPair.length === 1) return;
+
+        answered = true;
+        const sortedSelected = [...selectedPair].sort((a,b)=>a-b);
+        const sortedTarget = [...targetPair].sort((a,b)=>a-b);
+        const isCorrect = sortedSelected[0]===sortedTarget[0] && sortedSelected[1]===sortedTarget[1];
+
+        if (isCorrect) {
+          selectedPair.forEach(i => letterElements[i].classList.add('correct'));
+          const syllable = alphabet[targetPair[0]].char.toLowerCase() + alphabet[targetPair[1]].char.toLowerCase();
+          taskChar.textContent = syllable.toUpperCase();
+          taskChar.classList.remove('hidden-letter');
+          feedback.textContent = 'Верно! ✓  ' + syllable.toUpperCase();
+          feedback.className = 'feedback correct';
+          scoreCorrect++;
+          scoreCorrectEl.textContent = scoreCorrect;
+          speak('Верно!', () => setTimeout(startFindRound, 900));
+        } else {
+          selectedPair.forEach(i => letterElements[i].classList.add('wrong'));
+          targetPair.forEach(i => letterElements[i].classList.add('correct'));
+          const syllable = alphabet[targetPair[0]].char.toLowerCase() + alphabet[targetPair[1]].char.toLowerCase();
+          taskChar.textContent = syllable.toUpperCase();
+          taskChar.classList.remove('hidden-letter');
+          feedback.textContent = 'Неверно. Правильные буквы выделены';
+          feedback.className = 'feedback wrong';
+          scoreWrong++;
+          scoreWrongEl.textContent = scoreWrong;
+          speak('Неверно', () => setTimeout(startFindRound, 1400));
+        }
+        return;
+      }
+
+      if (targetIndex < 0) return;
+      answered = true;
+      clearHighlights();
+
+      if (idx === targetIndex) {
+        el.classList.add('correct');
+        feedback.textContent = 'Верно! ✓';
+        feedback.className = 'feedback correct';
+        scoreCorrect++;
+        scoreCorrectEl.textContent = scoreCorrect;
+        speak('Верно!', () => setTimeout(startFindRound, 700));
+      } else {
+        el.classList.add('wrong');
+        letterElements[targetIndex].classList.add('correct');
+        feedback.textContent = 'Неверно. Правильная буква выделена';
+        feedback.className = 'feedback wrong';
+        scoreWrong++;
+        scoreWrongEl.textContent = scoreWrong;
+        speak('Неверно', () => setTimeout(startFindRound, 1200));
+      }
+    }
+
+    function speakLetterWithWord(item, onEnd) {
+      const noWord = ['й', 'твёрдый знак', 'ы', 'мягкий знак'];
+      if (noWord.includes(item.name)) {
+        speak(item.name, onEnd);
+        return;
+      }
+      speak(item.name, () => {
+        setTimeout(() => speak(item.word, onEnd), 450);
+      });
+    }
+
+    function startFindRound() {
+      answered = false;
+      selectedPair = [];
+      clearHighlights();
+      feedback.textContent = '';
+      feedback.className = 'feedback';
+
+      if (mode === 'find') {
+        targetIndex = Math.floor(Math.random() * alphabet.length);
+        targetPair = [];
+        const target = alphabet[targetIndex];
+        taskLabel.textContent = 'Найди букву:';
+        taskChar.textContent = target.char;
+        taskChar.classList.remove('hidden-letter');
+        document.querySelector('.replay-row').classList.remove('visible');
+        speak(target.name);
+      } else if (mode === 'sound') {
+        targetIndex = Math.floor(Math.random() * alphabet.length);
+        targetPair = [];
+        const target = alphabet[targetIndex];
+        taskLabel.textContent = 'Найди букву по звуку:';
+        taskChar.textContent = '';
+        taskChar.classList.add('hidden-letter');
+        document.querySelector('.replay-row').classList.add('visible');
+        speakLetterWithWord(target);
+      } else if (mode === 'pairs') {
+        targetIndex = -1;
+        const cIdx = consonants[Math.floor(Math.random() * consonants.length)];
+        const vIdx = vowels[Math.floor(Math.random() * vowels.length)];
+        if (Math.random() < 0.5) {
+          targetPair = [cIdx, vIdx];
+        } else {
+          targetPair = [vIdx, cIdx];
+        }
+        const syllable = alphabet[targetPair[0]].char.toLowerCase() + alphabet[targetPair[1]].char.toLowerCase();
+        taskLabel.textContent = 'Найди буквы слога:';
+        taskChar.textContent = '';
+        taskChar.classList.add('hidden-letter');
+        document.querySelector('.replay-row').classList.add('visible');
+        speak(syllable);
+      }
+    }
+
+    replayBtn.addEventListener('click', () => {
+      if (mode === 'sound' && targetIndex >= 0) {
+        speakLetterWithWord(alphabet[targetIndex]);
+      } else if (mode === 'pairs' && targetPair.length === 2) {
+        const syllable = alphabet[targetPair[0]].char.toLowerCase() + alphabet[targetPair[1]].char.toLowerCase();
+        speak(syllable);
+      }
+    });
+
+    document.querySelectorAll('.mode-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        mode = btn.dataset.mode;
+        stopPlayAll();
+        clearHighlights();
+        feedback.textContent = '';
+        feedback.className = 'feedback';
+        selectedPair = [];
+        scoreCorrect = 0;
+        scoreWrong = 0;
+        scoreCorrectEl.textContent = '0';
+        scoreWrongEl.textContent = '0';
+        const playBar = document.getElementById('play-bar');
+        if (mode === 'alphabet') {
+          findTask.classList.remove('visible');
+          document.querySelector('.replay-row').classList.remove('visible');
+          if (playBar) playBar.classList.add('visible');
+          targetIndex = -1;
+          targetPair = [];
+        } else {
+          findTask.classList.add('visible');
+          if (playBar) playBar.classList.remove('visible');
+          stopPlayAll();
+          startFindRound();
+        }
+      });
+    });
+
+    document.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
+
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/myaiprojs/alphabet/sw.js', { scope: '/myaiprojs/alphabet/' })
+        .catch(function (err) {
+          console.warn('SW registration failed:', err);
+        });
+    }
+  </script>
+</body>
+</html>
+EOF
