@@ -1,0 +1,27 @@
+{
+  "name": "Русский алфавит",
+  "short_name": "Алфавит",
+  "description": "Изучение русского алфавита с озвучкой и играми",
+  "start_url": "/myaiprojs/alphabet/",
+  "scope": "/myaiprojs/alphabet/",
+  "id": "/myaiprojs/alphabet/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#1a1a2e",
+  "theme_color": "#e94560",
+  "lang": "ru",
+  "icons": [
+    {
+      "src": "/myaiprojs/alphabet/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/myaiprojs/alphabet/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
