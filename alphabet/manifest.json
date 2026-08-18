@@ -2,7 +2,7 @@
   "name": "Русский алфавит",
   "short_name": "Алфавит",
   "description": "Изучение русского алфавита с озвучкой и играми",
-  "start_url": "./alphabet.html",
+  "start_url": "./index.html",
   "display": "standalone",
   "orientation": "any",
   "background_color": "#1a1a2e",
